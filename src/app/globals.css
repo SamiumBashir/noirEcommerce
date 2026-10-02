@@ -1,0 +1,127 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-color: #F5F3EF;
+    --text-primary: #111111;
+    --text-secondary: #6B6B6B;
+    --border-color: #D8D5CF;
+    --dark-bg: #111111;
+    --dark-card: #1A1A1A;
+  }
+
+  html {
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    scroll-behavior: smooth;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+    selection-background-color: #111111;
+    selection-color: #F5F3EF;
+  }
+
+  ::selection {
+    background-color: #111111;
+    color: #F5F3EF;
+  }
+}
+
+/* Custom Editorial Typography & Utilities */
+.font-editorial {
+  font-family: var(--font-editorial), 'Playfair Display', Georgia, serif;
+}
+
+.font-sans {
+  font-family: var(--font-sans), 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.bg-noir-bg {
+  background-color: #F5F3EF;
+}
+
+.text-noir-primary {
+  color: #111111;
+}
+
+.text-noir-secondary {
+  color: #6B6B6B;
+}
+
+.bg-noir-dark {
+  background-color: #111111;
+}
+
+.border-noir {
+  border-color: #D8D5CF;
+}
+
+/* Lenis Recommended CSS */
+html.lenis, html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+.lenis.lenis-scrolling iframe {
+  pointer-events: none;
+}
+
+/* Hide scrollbar for clean editorial look */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Subtle image zoom hover */
+.img-editorial-zoom {
+  transition: transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.group:hover .img-editorial-zoom {
+  transform: scale(1.06);
+}
+
+/* Editorial line animations */
+.editorial-link {
+  position: relative;
+  display: inline-block;
+}
+
+.editorial-link::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  transform: scaleX(0);
+  height: 1px;
+  bottom: -2px;
+  left: 0;
+  background-color: currentColor;
+  transform-origin: bottom right;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.editorial-link:hover::after {
+  transform: scaleX(1);
+  transform-origin: bottom left;
+}
