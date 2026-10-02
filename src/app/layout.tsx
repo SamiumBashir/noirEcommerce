@@ -27,6 +27,15 @@ export const metadata: Metadata = {
   description:
     "A cinematic high-end fashion editorial and modern e-commerce platform. Sculptural silhouettes, architectural outerwear, and kinetic garments.",
   keywords: ["NOIR", "luxury fashion", "architectural clothing", "minimalist design", "high-end outerwear"],
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
   openGraph: {
     title: "NOIR — Designed For Those Who Move Differently",
     description: "Architectural outerwear and kinetic garments.",
