@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PRODUCTS } from "@/lib/data/products";
+import { PRODUCTS, getLiveProducts, saveLiveProduct } from "@/lib/data/products";
 import { ProductValidationSchema } from "@/lib/validations/product";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { ProductModel } from "@/lib/db/models/Product";
@@ -28,8 +28,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Static data fallback
-    let results = [...PRODUCTS];
+    // Live in-memory catalog fallback
+    let results = [...getLiveProducts()];
     if (category && category !== "ALL") {
       results = results.filter((p) => p.category === category.toUpperCase());
     }
@@ -68,27 +68,56 @@ export async function POST(request: NextRequest) {
     }
 
     const data = validation.data;
-    const slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const baseSlug = (data.slug || data.name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const slug = baseSlug || `piece-${Date.now()}`;
+    const id = `noir-${slug}-${Date.now().toString().slice(-4)}`;
 
-    const newProduct = {
-      ...data,
+    const newProduct: any = {
+      id,
       slug,
+      name: data.name,
+      subtitle: data.subtitle || "",
+      category: data.category,
+      gender: data.gender || "Unisex",
+      price: data.price,
+      originalPrice: data.originalPrice,
       rating: 5.0,
       reviewCount: 0,
-      isNewPiece: true,
-      inStock: true,
-      details: ["Japanese engineered weave", "Precision hand-tailoring"],
-      shippingInfo: "Complimentary global shipping.",
-      careInstructions: "Specialist dry clean only.",
+      isNew: data.isNew !== undefined ? data.isNew : true,
+      isNewPiece: data.isNew !== undefined ? data.isNew : true,
+      isBestSeller: data.isBestSeller || false,
+      isFeatured: data.isFeatured || false,
+      inStock: data.inStock !== undefined ? data.inStock : true,
+      stockCount: data.stockCount || 10,
+      colors: data.colors && data.colors.length > 0 ? data.colors : [
+        { name: "Noir Black", hex: "#111111", image: data.images[0] }
+      ],
+      sizes: data.sizes && data.sizes.length > 0 ? data.sizes : ["S", "M", "L", "XL"],
+      description: data.description,
+      details: data.details && data.details.length > 0 ? data.details : [
+        "Architectural cut with precision atelier construction",
+        "Engineered for fluid motion and structured silhouette"
+      ],
+      shippingInfo: data.shippingInfo || "Complimentary global shipping. 2-4 business days delivery.",
+      careInstructions: data.careInstructions || "Specialist dry clean only.",
+      images: data.images,
     };
 
+    // Update live in-memory catalogue
+    saveLiveProduct(newProduct);
+
+    // Persist to MongoDB if connection available
     const conn = await connectToDatabase();
     if (conn) {
-      const created = await ProductModel.create(newProduct);
-      return NextResponse.json({ success: true, data: created }, { status: 201 });
+      try {
+        const created = await ProductModel.create(newProduct);
+        return NextResponse.json({ success: true, data: created }, { status: 201 });
+      } catch (dbErr: any) {
+        console.warn("MongoDB create failed, saved in memory:", dbErr.message);
+      }
     }
 
-    return NextResponse.json({ success: true, data: { id: `noir-${Date.now()}`, ...newProduct } }, { status: 201 });
+    return NextResponse.json({ success: true, data: newProduct }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: error.message || "Failed to create product" },

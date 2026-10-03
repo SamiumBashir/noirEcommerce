@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, use } from "react";
+import React, { useState, useEffect, use } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
@@ -16,7 +16,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { PRODUCTS } from "@/lib/data/products";
+import { PRODUCTS, Product } from "@/lib/data/products";
 import { formatPrice } from "@/lib/utils";
 import { useCart } from "@/lib/context/CartContext";
 import { useWishlist } from "@/lib/context/WishlistContext";
@@ -29,25 +29,65 @@ interface PageProps {
 export default function ProductDetailPage({ params }: PageProps) {
   const resolvedParams = use(params);
   const router = useRouter();
-  const product = PRODUCTS.find((p) => p.slug === resolvedParams.slug);
 
-  if (!product) {
-    notFound();
-  }
+  const [product, setProduct] = useState<Product | undefined>(() =>
+    PRODUCTS.find((p) => p.slug === resolvedParams.slug || p.id === resolvedParams.slug)
+  );
+  const [isLoading, setIsLoading] = useState(!product);
+
+  useEffect(() => {
+    if (!product) {
+      fetch(`/api/products/${resolvedParams.slug}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.data) {
+            setProduct(data.data);
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsLoading(false));
+    }
+  }, [product, resolvedParams.slug]);
 
   const { addToCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
 
-  const [selectedColor, setSelectedColor] = useState(product.colors[0] || { name: "Default", hex: "#111111", image: product.images[0] });
-  const [selectedSize, setSelectedSize] = useState(product.sizes[0] || "M");
+  const [selectedColor, setSelectedColor] = useState(
+    product?.colors?.[0] || { name: "Default", hex: "#111111", image: product?.images?.[0] || "" }
+  );
+  const [selectedSize, setSelectedSize] = useState(product?.sizes?.[0] || "M");
   const [quantity, setQuantity] = useState(1);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isAdded, setIsAdded] = useState(false);
+
+  useEffect(() => {
+    if (product) {
+      if (product.colors?.[0]) setSelectedColor(product.colors[0]);
+      if (product.sizes?.[0]) setSelectedSize(product.sizes[0]);
+    }
+  }, [product]);
 
   // Accordion states
   const [detailsOpen, setDetailsOpen] = useState(true);
   const [shippingOpen, setShippingOpen] = useState(false);
   const [careOpen, setCareOpen] = useState(false);
+
+  if (isLoading) {
+    return (
+      <div className="w-full min-h-screen bg-[#F5F3EF] pt-40 pb-32 flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="w-8 h-8 mx-auto border-2 border-[#111111] border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs uppercase tracking-widest text-[#6B6B6B] font-mono">
+            Loading atelier piece...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!product) {
+    notFound();
+  }
 
   const isFavorited = isInWishlist(product.id);
 

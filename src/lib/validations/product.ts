@@ -2,24 +2,32 @@ import { z } from "zod";
 
 export const ProductValidationSchema = z.object({
   name: z.string().min(2, "Product name is required"),
+  slug: z.string().optional(),
   subtitle: z.string().optional().default(""),
   category: z.enum(["MEN", "WOMEN", "ACCESSORIES", "NEW ARRIVALS"]),
   gender: z.enum(["Men", "Women", "Unisex"]).default("Unisex"),
   price: z.number().positive("Price must be positive"),
   originalPrice: z.number().positive().optional(),
   stockCount: z.number().int().nonnegative().default(10),
-  description: z.string().min(10, "Description must be at least 10 characters"),
+  inStock: z.boolean().optional().default(true),
+  description: z.string().min(5, "Description must be at least 5 characters"),
   sizes: z.array(z.string()).default(["S", "M", "L"]),
-  images: z.array(z.string().url()).min(1, "At least one image URL is required"),
+  images: z.array(z.string().min(1, "Image path or URL is required")).min(1, "At least one image is required"),
   colors: z
     .array(
       z.object({
         name: z.string(),
         hex: z.string(),
-        image: z.string(),
+        image: z.string().min(1, "Color image is required"),
       })
     )
     .default([]),
+  details: z.array(z.string()).optional().default([]),
+  shippingInfo: z.string().optional().default("Complimentary global express shipping."),
+  careInstructions: z.string().optional().default("Specialist dry clean only."),
+  isNew: z.boolean().optional().default(true),
+  isBestSeller: z.boolean().optional().default(false),
+  isFeatured: z.boolean().optional().default(false),
 });
 
 export const OrderValidationSchema = z.object({

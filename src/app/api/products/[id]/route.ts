@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PRODUCTS } from "@/lib/data/products";
+import { PRODUCTS, getLiveProducts, saveLiveProduct, deleteLiveProduct } from "@/lib/data/products";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { ProductModel } from "@/lib/db/models/Product";
 
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const product = PRODUCTS.find((p) => p.id === id || p.slug === id);
+    const product = getLiveProducts().find((p) => p.id === id || p.slug === id);
     if (!product) {
       return NextResponse.json(
         { success: false, error: "Product not found" },
@@ -43,20 +43,34 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const body = await request.json();
 
+    // Update in-memory catalogue
+    const catalog = getLiveProducts();
+    const existing = catalog.find((p) => p.id === id || p.slug === id);
+    let updatedMemory = null;
+    if (existing) {
+      updatedMemory = saveLiveProduct({ ...existing, ...body });
+    }
+
     const conn = await connectToDatabase();
     if (conn) {
-      const updated = await ProductModel.findOneAndUpdate(
-        { $or: [{ _id: id }, { slug: id }] },
-        { $set: body },
-        { new: true }
-      );
-      return NextResponse.json({ success: true, data: updated });
+      try {
+        const updated = await ProductModel.findOneAndUpdate(
+          { $or: [{ _id: id }, { slug: id }] },
+          { $set: body },
+          { new: true }
+        );
+        if (updated) {
+          return NextResponse.json({ success: true, data: updated });
+        }
+      } catch (dbErr: any) {
+        console.warn("MongoDB update failed, updated in memory:", dbErr.message);
+      }
     }
 
     return NextResponse.json({
       success: true,
-      data: { id, ...body },
-      message: "Product updated in session",
+      data: updatedMemory || { id, ...body },
+      message: "Product updated successfully",
     });
   } catch (error: any) {
     return NextResponse.json(
@@ -69,11 +83,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
   try {
+    // Remove from in-memory catalogue
+    deleteLiveProduct(id);
+
     const conn = await connectToDatabase();
     if (conn) {
-      await ProductModel.findOneAndDelete({
-        $or: [{ _id: id }, { slug: id }],
-      });
+      try {
+        await ProductModel.findOneAndDelete({
+          $or: [{ _id: id }, { slug: id }],
+        });
+      } catch (dbErr: any) {
+        console.warn("MongoDB delete failed:", dbErr.message);
+      }
     }
 
     return NextResponse.json({

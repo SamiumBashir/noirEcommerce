@@ -29,7 +29,7 @@ export interface Product {
   images: string[];
 }
 
-export const PRODUCTS: Product[] = [
+const INITIAL_PRODUCTS: Product[] = [
   // ==================== MEN'S COLLECTION ====================
   {
     id: "noir-motion-jacket",
@@ -1236,6 +1236,45 @@ export const PRODUCTS: Product[] = [
     ]
   }
 ];
+
+declare global {
+  // eslint-disable-next-line no-var
+  var _noirProductCatalog: Product[] | undefined;
+}
+
+if (!globalThis._noirProductCatalog) {
+  globalThis._noirProductCatalog = [...INITIAL_PRODUCTS];
+}
+
+export const PRODUCTS: Product[] = globalThis._noirProductCatalog;
+
+export function getLiveProducts(): Product[] {
+  if (!globalThis._noirProductCatalog) {
+    globalThis._noirProductCatalog = [...INITIAL_PRODUCTS];
+  }
+  return globalThis._noirProductCatalog;
+}
+
+export function saveLiveProduct(newProduct: Product): Product {
+  const catalog = getLiveProducts();
+  const idx = catalog.findIndex((p) => p.id === newProduct.id || p.slug === newProduct.slug);
+  if (idx !== -1) {
+    catalog[idx] = newProduct;
+  } else {
+    catalog.unshift(newProduct);
+  }
+  return newProduct;
+}
+
+export function deleteLiveProduct(idOrSlug: string): boolean {
+  const catalog = getLiveProducts();
+  const idx = catalog.findIndex((p) => p.id === idOrSlug || p.slug === idOrSlug);
+  if (idx !== -1) {
+    catalog.splice(idx, 1);
+    return true;
+  }
+  return false;
+}
 
 export const CATEGORIES = [
   {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -26,10 +26,12 @@ import {
   ShieldCheck,
   AlertCircle,
   ArrowRight,
+  UploadCloud,
 } from "lucide-react";
 import { PRODUCTS, Product, CATEGORIES } from "@/lib/data/products";
 import { formatPrice } from "@/lib/utils";
 import { useAuth } from "@/lib/context/AuthContext";
+import { ProductFormModal } from "@/components/admin/ProductFormModal";
 
 type AdminTab = "analytics" | "products" | "orders" | "customers" | "categories";
 
@@ -44,9 +46,14 @@ export default function AdminPage() {
   const [authError, setAuthError] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
 
-  // Local state for products so admin can add/edit/delete in live session
+  // Live state for products loaded from API & in-memory catalog
   const [productList, setProductList] = useState<Product[]>(PRODUCTS);
   const [productSearch, setProductSearch] = useState("");
+  const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Product Modals State
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   // Orders state
   const [ordersList, setOrdersList] = useState([
@@ -148,63 +155,71 @@ export default function AdminPage() {
     },
   ]);
 
-  // Create Product Modal State
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const [newCategory, setNewCategory] = useState<"MEN" | "WOMEN" | "ACCESSORIES" | "NEW ARRIVALS">("MEN");
-  const [newPrice, setNewPrice] = useState(195);
-  const [newStock, setNewStock] = useState(15);
-  const [newImageUrl, setNewImageUrl] = useState("https://images.unsplash.com/photo-1544022613-e87ca75a784a?q=80&w=1200&auto=format&fit=crop");
-  const [newDesc, setNewDesc] = useState("Architectural tailoring designed for fluid movement.");
+  // Load live products from backend on mount or authentication
+  useEffect(() => {
+    async function loadProducts() {
+      try {
+        const res = await fetch("/api/products");
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+          setProductList(data.data);
+        }
+      } catch (err) {
+        console.warn("Using offline catalog fallback:", err);
+      }
+    }
+    if (isAdmin) {
+      loadProducts();
+    }
+  }, [isAdmin]);
 
-  // Edit Product Modal State
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-
-  // Handle Product Deletion
-  const handleDeleteProduct = (id: string) => {
-    setProductList((prev) => prev.filter((p) => p.id !== id));
+  // Handle Product Save (both create & edit)
+  const handleSaveProduct = (savedProduct: Product, isNew: boolean) => {
+    if (isNew) {
+      setProductList((prev) => [savedProduct, ...prev]);
+      setToast({
+        type: "success",
+        text: `Silhouette "${savedProduct.name}" created and published to live catalog!`,
+      });
+    } else {
+      setProductList((prev) =>
+        prev.map((p) => (p.id === savedProduct.id ? savedProduct : p))
+      );
+      setToast({
+        type: "success",
+        text: `Silhouette "${savedProduct.name}" updated successfully!`,
+      });
+    }
+    setTimeout(() => setToast(null), 4500);
   };
 
-  // Handle Product Creation
-  const handleCreateProduct = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTitle) return;
+  // Handle Product Deletion with API persistence
+  const handleDeleteProduct = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to remove "${name}" from the atelier catalog?`)) {
+      return;
+    }
 
-    const created: Product = {
-      id: `noir-${Date.now()}`,
-      slug: newTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-      name: newTitle,
-      subtitle: "New Atelier Piece",
-      category: newCategory,
-      gender: newCategory === "WOMEN" ? "Women" : newCategory === "MEN" ? "Men" : "Unisex",
-      price: Number(newPrice),
-      rating: 5.0,
-      reviewCount: 1,
-      isNew: true,
-      inStock: true,
-      stockCount: Number(newStock),
-      colors: [{ name: "Noir Black", hex: "#111111", image: newImageUrl }],
-      sizes: ["S", "M", "L", "XL"],
-      description: newDesc,
-      details: ["Engineered technical fabrication", "Hand-finished atelier construction"],
-      shippingInfo: "Complimentary global shipping.",
-      careInstructions: "Specialist dry clean only.",
-      images: [newImageUrl],
-    };
-
-    setProductList([created, ...productList]);
-    setIsCreateModalOpen(false);
-    setNewTitle("");
-  };
-
-  // Handle Edit Product
-  const handleSaveEditProduct = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingProduct) return;
-    setProductList((prev) =>
-      prev.map((p) => (p.id === editingProduct.id ? editingProduct : p))
-    );
-    setEditingProduct(null);
+    try {
+      const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setProductList((prev) => prev.filter((p) => p.id !== id && p.slug !== id));
+        setToast({
+          type: "success",
+          text: `"${name}" was successfully removed from the catalog.`,
+        });
+      } else {
+        throw new Error(data.error || "Failed to delete");
+      }
+    } catch {
+      // Fallback local remove
+      setProductList((prev) => prev.filter((p) => p.id !== id && p.slug !== id));
+      setToast({
+        type: "success",
+        text: `"${name}" removed from current catalogue session.`,
+      });
+    }
+    setTimeout(() => setToast(null), 4500);
   };
 
   // Handle Order Status Update
@@ -421,6 +436,29 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* Action Feedback Toast */}
+        {toast && (
+          <div
+            className={`mt-6 p-4 text-xs flex items-center justify-between border shadow-sm transition-all animate-fadeIn ${
+              toast.type === "success"
+                ? "bg-emerald-50 border-emerald-300 text-emerald-900"
+                : "bg-red-50 border-red-300 text-red-900"
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="font-medium">{toast.text}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setToast(null)}
+              className="text-[#6B6B6B] hover:text-[#111111]"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Top KPI Metric Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pt-10">
           <div className="bg-white border border-[#D8D5CF] p-6 space-y-2 shadow-sm">
@@ -593,11 +631,15 @@ export default function AdminPage() {
                 </div>
 
                 <button
-                  onClick={() => setIsCreateModalOpen(true)}
-                  className="px-5 py-2.5 bg-[#111111] text-[#F5F3EF] text-xs uppercase tracking-wider font-medium hover:bg-black transition-colors flex items-center gap-2"
+                  type="button"
+                  onClick={() => {
+                    setEditingProduct(null);
+                    setIsCreateModalOpen(true);
+                  }}
+                  className="px-5 py-2.5 bg-[#111111] text-[#F5F3EF] text-xs uppercase tracking-wider font-medium hover:bg-black transition-colors flex items-center gap-2 shadow-sm"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>Create New Silhouette</span>
+                  <span>Upload & Create Silhouette</span>
                 </button>
               </div>
 
@@ -610,7 +652,7 @@ export default function AdminPage() {
                       <th className="p-4">Category</th>
                       <th className="p-4">Price</th>
                       <th className="p-4">Stock</th>
-                      <th className="p-4">Rating</th>
+                      <th className="p-4">Colors & Sizes</th>
                       <th className="p-4 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -618,41 +660,93 @@ export default function AdminPage() {
                     {filteredAdminProducts.map((p) => (
                       <tr key={p.id} className="hover:bg-black/[0.02]">
                         <td className="p-4 flex items-center gap-3">
-                          <div className="relative w-10 h-13 bg-[#EAE8E2] shrink-0">
+                          <div className="relative w-11 h-14 bg-[#EAE8E2] shrink-0 border border-[#D8D5CF] overflow-hidden">
                             <Image src={p.images[0]} alt={p.name} fill className="object-cover" />
                           </div>
                           <div>
                             <span className="font-medium uppercase text-[#111111] block">
                               {p.name}
                             </span>
-                            <span className="text-[10px] text-[#6B6B6B]">{p.slug}</span>
+                            <span className="text-[10px] font-mono text-[#6B6B6B] block">
+                              /{p.slug}
+                            </span>
+                            {p.subtitle && (
+                              <span className="text-[10px] text-[#6B6B6B] italic line-clamp-1">
+                                {p.subtitle}
+                              </span>
+                            )}
                           </div>
                         </td>
-                        <td className="p-4 uppercase text-[#6B6B6B]">{p.category}</td>
-                        <td className="p-4 font-medium text-[#111111]">{formatPrice(p.price)}</td>
+                        <td className="p-4">
+                          <span className="px-2 py-0.5 bg-black/5 text-[#111111] text-[10px] uppercase font-mono">
+                            {p.category}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <span className="font-medium text-[#111111] block">
+                            {formatPrice(p.price)}
+                          </span>
+                          {p.originalPrice && (
+                            <span className="text-[10px] line-through text-[#6B6B6B]">
+                              {formatPrice(p.originalPrice)}
+                            </span>
+                          )}
+                        </td>
                         <td className="p-4">
                           <span
                             className={`px-2 py-0.5 font-mono text-[10px] ${
-                              p.stockCount > 10
-                                ? "bg-emerald-100 text-emerald-800"
-                                : "bg-amber-100 text-amber-800"
+                              p.inStock && p.stockCount > 0
+                                ? p.stockCount > 10
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-amber-100 text-amber-800"
+                                : "bg-red-100 text-red-800"
                             }`}
                           >
-                            {p.stockCount} units
+                            {p.inStock ? `${p.stockCount} units` : "Sold Out"}
                           </span>
                         </td>
-                        <td className="p-4 font-mono text-[#111111]">★ {p.rating} ({p.reviewCount})</td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-1 mb-1">
+                            {p.colors?.slice(0, 4).map((c, i) => (
+                              <span
+                                key={i}
+                                className="w-2.5 h-2.5 rounded-full border border-black/20"
+                                style={{ backgroundColor: c.hex }}
+                                title={c.name}
+                              />
+                            ))}
+                            {(p.colors?.length || 0) > 4 && (
+                              <span className="text-[9px] text-[#6B6B6B]">+{p.colors.length - 4}</span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-[#6B6B6B] font-mono">
+                            {p.sizes?.join(", ") || "—"}
+                          </span>
+                        </td>
                         <td className="p-4 text-right space-x-2">
+                          <Link
+                            href={`/products/${p.slug}`}
+                            target="_blank"
+                            className="inline-block p-1.5 text-[#6B6B6B] hover:text-[#111111] hover:bg-black/5 rounded"
+                            title="View on Storefront"
+                          >
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                          </Link>
                           <button
-                            onClick={() => setEditingProduct(p)}
-                            className="p-1.5 text-[#111111] hover:bg-black/5 rounded"
-                            title="Edit Piece"
+                            type="button"
+                            onClick={() => {
+                              setIsCreateModalOpen(false);
+                              setEditingProduct(p);
+                            }}
+                            className="p-1.5 text-[#111111] hover:bg-black/5 rounded transition-colors"
+                            title="Edit Piece Details"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => handleDeleteProduct(p.id)}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded"
+                            type="button"
+                            onClick={() => handleDeleteProduct(p.id, p.name)}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
                             title="Delete Piece"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -791,191 +885,16 @@ export default function AdminPage() {
           )}
         </div>
 
-        {/* Create Product Modal */}
-        {isCreateModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <div className="bg-[#F5F3EF] border border-[#D8D5CF] p-8 max-w-lg w-full space-y-6 shadow-2xl">
-              <div className="flex justify-between items-center border-b border-[#D8D5CF] pb-4">
-                <h3 className="font-editorial text-2xl uppercase text-[#111111]">
-                  Add New Silhouette
-                </h3>
-                <button onClick={() => setIsCreateModalOpen(false)}>
-                  <X className="w-5 h-5 text-[#6B6B6B]" />
-                </button>
-              </div>
-
-              <form onSubmit={handleCreateProduct} className="space-y-4">
-                <div>
-                  <label className="text-[10px] uppercase tracking-widest text-[#6B6B6B] block mb-1">
-                    Piece Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                    placeholder="e.g. Kinetic Wool Bomber"
-                    className="w-full bg-white border border-[#D8D5CF] px-3 py-2 text-xs text-[#111111]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="text-[10px] uppercase tracking-widest text-[#6B6B6B] block mb-1">
-                      Category
-                    </label>
-                    <select
-                      value={newCategory}
-                      onChange={(e) => setNewCategory(e.target.value as any)}
-                      className="w-full bg-white border border-[#D8D5CF] px-2 py-2 text-xs text-[#111111]"
-                    >
-                      <option value="MEN">MEN</option>
-                      <option value="WOMEN">WOMEN</option>
-                      <option value="ACCESSORIES">ACCESSORIES</option>
-                      <option value="NEW ARRIVALS">NEW ARRIVALS</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] uppercase tracking-widest text-[#6B6B6B] block mb-1">
-                      Price ($)
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      value={newPrice}
-                      onChange={(e) => setNewPrice(Number(e.target.value))}
-                      className="w-full bg-white border border-[#D8D5CF] px-3 py-2 text-xs text-[#111111]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] uppercase tracking-widest text-[#6B6B6B] block mb-1">
-                      Stock
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      value={newStock}
-                      onChange={(e) => setNewStock(Number(e.target.value))}
-                      className="w-full bg-white border border-[#D8D5CF] px-3 py-2 text-xs text-[#111111]"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-[10px] uppercase tracking-widest text-[#6B6B6B] block mb-1">
-                    Image URL
-                  </label>
-                  <input
-                    type="url"
-                    required
-                    value={newImageUrl}
-                    onChange={(e) => setNewImageUrl(e.target.value)}
-                    className="w-full bg-white border border-[#D8D5CF] px-3 py-2 text-xs text-[#111111]"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[10px] uppercase tracking-widest text-[#6B6B6B] block mb-1">
-                    Editorial Description
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={newDesc}
-                    onChange={(e) => setNewDesc(e.target.value)}
-                    className="w-full bg-white border border-[#D8D5CF] px-3 py-2 text-xs text-[#111111]"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-3 pt-4 border-t border-[#D8D5CF]">
-                  <button
-                    type="button"
-                    onClick={() => setIsCreateModalOpen(false)}
-                    className="px-4 py-2 border border-[#D8D5CF] text-xs uppercase"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-2 bg-[#111111] text-[#F5F3EF] text-xs uppercase font-medium hover:bg-black"
-                  >
-                    Save & Publish
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Edit Product Modal */}
-        {editingProduct && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <div className="bg-[#F5F3EF] border border-[#D8D5CF] p-8 max-w-md w-full space-y-6 shadow-2xl">
-              <div className="flex justify-between items-center border-b border-[#D8D5CF] pb-4">
-                <h3 className="font-editorial text-2xl uppercase text-[#111111]">
-                  Edit Silhouette
-                </h3>
-                <button onClick={() => setEditingProduct(null)}>
-                  <X className="w-5 h-5 text-[#6B6B6B]" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveEditProduct} className="space-y-4">
-                <div>
-                  <label className="text-[10px] uppercase tracking-widest text-[#6B6B6B] block mb-1">
-                    Piece Name
-                  </label>
-                  <input
-                    type="text"
-                    value={editingProduct.name}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                    className="w-full bg-white border border-[#D8D5CF] px-3 py-2 text-xs text-[#111111]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[10px] uppercase tracking-widest text-[#6B6B6B] block mb-1">
-                      Price ($)
-                    </label>
-                    <input
-                      type="number"
-                      value={editingProduct.price}
-                      onChange={(e) => setEditingProduct({ ...editingProduct, price: Number(e.target.value) })}
-                      className="w-full bg-white border border-[#D8D5CF] px-3 py-2 text-xs text-[#111111]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] uppercase tracking-widest text-[#6B6B6B] block mb-1">
-                      Stock Count
-                    </label>
-                    <input
-                      type="number"
-                      value={editingProduct.stockCount}
-                      onChange={(e) => setEditingProduct({ ...editingProduct, stockCount: Number(e.target.value) })}
-                      className="w-full bg-white border border-[#D8D5CF] px-3 py-2 text-xs text-[#111111]"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3 pt-4 border-t border-[#D8D5CF]">
-                  <button
-                    type="button"
-                    onClick={() => setEditingProduct(null)}
-                    className="px-4 py-2 border border-[#D8D5CF] text-xs uppercase"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-2 bg-[#111111] text-[#F5F3EF] text-xs uppercase font-medium hover:bg-black"
-                  >
-                    Save Changes
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        {/* Product Create & Edit Modal */}
+        <ProductFormModal
+          isOpen={isCreateModalOpen || Boolean(editingProduct)}
+          onClose={() => {
+            setIsCreateModalOpen(false);
+            setEditingProduct(null);
+          }}
+          productToEdit={editingProduct}
+          onSave={handleSaveProduct}
+        />
       </div>
     </div>
   );

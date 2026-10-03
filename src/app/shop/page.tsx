@@ -41,6 +41,7 @@ function ShopContent() {
   const router = useRouter();
   const pathname = usePathname();
 
+  const [allProducts, setAllProducts] = useState<Product[]>(PRODUCTS);
   const [category, setCategory] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
@@ -49,6 +50,18 @@ function ShopContent() {
   const [sortBy, setSortBy] = useState<string>("featured");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [gridCols, setGridCols] = useState<2 | 4>(4);
+
+  // Sync latest catalog pieces from API
+  useEffect(() => {
+    fetch("/api/products")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+          setAllProducts(data.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Sync category & filter from URL query params
   useEffect(() => {
@@ -110,17 +123,17 @@ function ShopContent() {
   // Dynamic live counts for category badges
   const categoryCounts = useMemo(() => {
     return {
-      ALL: PRODUCTS.length,
-      MEN: PRODUCTS.filter((p) => p.category === "MEN").length,
-      WOMEN: PRODUCTS.filter((p) => p.category === "WOMEN").length,
-      ACCESSORIES: PRODUCTS.filter((p) => p.category === "ACCESSORIES").length,
-      "NEW ARRIVALS": PRODUCTS.filter((p) => p.isNew || p.category === "NEW ARRIVALS").length,
+      ALL: allProducts.length,
+      MEN: allProducts.filter((p) => p.category === "MEN").length,
+      WOMEN: allProducts.filter((p) => p.category === "WOMEN").length,
+      ACCESSORIES: allProducts.filter((p) => p.category === "ACCESSORIES").length,
+      "NEW ARRIVALS": allProducts.filter((p) => p.isNew || p.category === "NEW ARRIVALS").length,
     };
-  }, []);
+  }, [allProducts]);
 
   // Filter & sort logic
   const filteredProducts = useMemo(() => {
-    return PRODUCTS.filter((product) => {
+    return allProducts.filter((product) => {
       // Category filter
       if (category !== "ALL") {
         if (category === "NEW ARRIVALS") {
@@ -194,7 +207,7 @@ function ShopContent() {
             </span>
             <span className="text-[11px] text-[#A8A49C]">•</span>
             <span className="text-[11px] font-mono text-[#6B6B6B]">
-              {PRODUCTS.length} SILHOUETTES
+              {allProducts.length} SILHOUETTES
             </span>
           </div>
 
@@ -609,7 +622,7 @@ function ShopContent() {
                 onClick={() => handleCategorySelect("ALL")}
                 className="px-6 py-2.5 border border-[#111111] text-[#111111] text-xs uppercase tracking-widest font-medium hover:bg-[#111111] hover:text-[#F5F3EF] transition-colors"
               >
-                View Full Canon ({PRODUCTS.length})
+                View Full Canon ({allProducts.length})
               </button>
             </div>
           </div>
