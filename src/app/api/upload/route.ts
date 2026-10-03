@@ -3,6 +3,16 @@ import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { isCloudinaryConfigured, uploadToCloudinary } from "@/lib/cloudinary";
 
+function isServerlessEnvironment(): boolean {
+  return Boolean(
+    process.env.VERCEL ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.LAMBDA_TASK_ROOT ||
+    (typeof process.cwd === "function" && process.cwd().startsWith("/var/task")) ||
+    process.env.NODE_ENV === "production"
+  );
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -57,33 +67,73 @@ export async function POST(request: NextRequest) {
           mimeType: file.type,
         });
       } catch (cloudErr: any) {
-        console.warn("Cloudinary upload failed, falling back to local storage:", cloudErr.message);
+        console.error("Cloudinary upload error:", cloudErr);
+
+        // In serverless/Vercel, disk is read-only (EROFS). Do not attempt local file write.
+        if (isServerlessEnvironment()) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Cloudinary upload failed: ${cloudErr.message || "Authentication error"}. Please check your Cloudinary credentials in Vercel Environment Variables.`,
+            },
+            { status: 500 }
+          );
+        }
+
+        console.warn("Cloudinary upload failed, attempting local storage fallback:", cloudErr.message);
+      }
+    } else {
+      // Cloudinary is not configured
+      // In serverless/Vercel, disk is read-only (EROFS). Prevent local write attempt.
+      if (isServerlessEnvironment()) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "Cloudinary is not configured in Vercel. In serverless hosting (Vercel), local disk storage is read-only (EROFS). Please add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in your Vercel Project Settings > Environment Variables, then redeploy.",
+          },
+          { status: 400 }
+        );
       }
     }
 
-    // 2. Fallback to local /public/uploads/ storage
-    const uploadDir = path.join(process.cwd(), "public", "uploads");
-    await mkdir(uploadDir, { recursive: true });
+    // 2. Fallback to local /public/uploads/ storage (only in local development)
+    try {
+      const uploadDir = path.join(process.cwd(), "public", "uploads");
+      await mkdir(uploadDir, { recursive: true });
 
-    // Build sanitized, unique filename
-    const ext = path.extname(file.name) || ".jpg";
-    const rawName = path.basename(file.name, ext).replace(/[^a-zA-Z0-9_-]/g, "");
-    const safeBase = rawName.substring(0, 30) || "product";
-    const fileName = `${Date.now()}-${safeBase}${ext}`;
-    const filePath = path.join(uploadDir, fileName);
+      // Build sanitized, unique filename
+      const ext = path.extname(file.name) || ".jpg";
+      const rawName = path.basename(file.name, ext).replace(/[^a-zA-Z0-9_-]/g, "");
+      const safeBase = rawName.substring(0, 30) || "product";
+      const fileName = `${Date.now()}-${safeBase}${ext}`;
+      const filePath = path.join(uploadDir, fileName);
 
-    await writeFile(filePath, buffer);
+      await writeFile(filePath, buffer);
 
-    const publicUrl = `/uploads/${fileName}`;
+      const publicUrl = `/uploads/${fileName}`;
 
-    return NextResponse.json({
-      success: true,
-      url: publicUrl,
-      provider: "local",
-      fileName,
-      size: file.size,
-      mimeType: file.type,
-    });
+      return NextResponse.json({
+        success: true,
+        url: publicUrl,
+        provider: "local",
+        fileName,
+        size: file.size,
+        mimeType: file.type,
+      });
+    } catch (fsErr: any) {
+      if (fsErr.code === "EROFS" || fsErr.message?.includes("read-only")) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "Cannot write to local storage: Read-only serverless environment. Please configure Cloudinary environment variables in Vercel to store uploaded images.",
+          },
+          { status: 500 }
+        );
+      }
+      throw fsErr;
+    }
   } catch (error: any) {
     console.error("Image upload error:", error);
     return NextResponse.json(
