@@ -15,12 +15,21 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get("category");
     const query = searchParams.get("q");
 
-    // 1. Load custom products from MongoDB if available
+    // 1. Load products from MongoDB if available (auto-seed if freshly connected)
     let customProducts: any[] = [];
     const conn = await connectToDatabase();
     if (conn) {
       try {
-        const dbProducts = await ProductModel.find({}).lean();
+        let dbProducts = await ProductModel.find({}).lean();
+        if (dbProducts.length === 0) {
+          const initialItems = PRODUCTS.map((p) => ({
+            ...p,
+            isNewPiece: p.isNew ?? true,
+          }));
+          await ProductModel.insertMany(initialItems);
+          dbProducts = await ProductModel.find({}).lean();
+        }
+
         if (dbProducts.length > 0) {
           customProducts = dbProducts.map((p: any) => ({
             ...p,
@@ -29,7 +38,7 @@ export async function GET(request: NextRequest) {
           }));
         }
       } catch (dbErr: any) {
-        console.warn("MongoDB fetch failed, falling back to disk storage:", dbErr.message);
+        console.warn("MongoDB fetch/seed failed, falling back to disk storage:", dbErr.message);
       }
     }
 
