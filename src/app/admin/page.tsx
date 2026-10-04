@@ -32,6 +32,11 @@ import { PRODUCTS, Product, CATEGORIES } from "@/lib/data/products";
 import { formatPrice } from "@/lib/utils";
 import { useAuth } from "@/lib/context/AuthContext";
 import { ProductFormModal } from "@/components/admin/ProductFormModal";
+import {
+  mergeWithCustomProducts,
+  saveCustomProductToStorage,
+  deleteCustomProductFromStorage,
+} from "@/lib/utils/productStorage";
 
 type AdminTab = "analytics" | "products" | "orders" | "customers" | "categories";
 
@@ -47,7 +52,12 @@ export default function AdminPage() {
   const [isVerifying, setIsVerifying] = useState(false);
 
   // Live state for products loaded from API & in-memory catalog
-  const [productList, setProductList] = useState<Product[]>(PRODUCTS);
+  const [productList, setProductList] = useState<Product[]>(() => {
+    if (typeof window !== "undefined") {
+      return mergeWithCustomProducts(PRODUCTS);
+    }
+    return PRODUCTS;
+  });
   const [productSearch, setProductSearch] = useState("");
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -164,10 +174,13 @@ export default function AdminPage() {
         const res = await fetch("/api/products");
         const data = await res.json();
         if (data.success && Array.isArray(data.data) && data.data.length > 0) {
-          setProductList(data.data);
+          setProductList(mergeWithCustomProducts(data.data));
+        } else {
+          setProductList((prev) => mergeWithCustomProducts(prev.length > 0 ? prev : PRODUCTS));
         }
       } catch (err) {
         console.warn("Using offline catalog fallback:", err);
+        setProductList((prev) => mergeWithCustomProducts(prev.length > 0 ? prev : PRODUCTS));
       }
     }
     if (isAdmin) {
@@ -177,15 +190,19 @@ export default function AdminPage() {
 
   // Handle Product Save (both create & edit)
   const handleSaveProduct = (savedProduct: Product, isNew: boolean) => {
+    saveCustomProductToStorage(savedProduct);
     if (isNew) {
-      setProductList((prev) => [savedProduct, ...prev]);
+      setProductList((prev) => [
+        savedProduct,
+        ...prev.filter((p) => p.id !== savedProduct.id && p.slug !== savedProduct.slug),
+      ]);
       setToast({
         type: "success",
         text: `Silhouette "${savedProduct.name}" created and published to live catalog!`,
       });
     } else {
       setProductList((prev) =>
-        prev.map((p) => (p.id === savedProduct.id ? savedProduct : p))
+        prev.map((p) => (p.id === savedProduct.id || p.slug === savedProduct.slug ? savedProduct : p))
       );
       setToast({
         type: "success",
@@ -201,6 +218,7 @@ export default function AdminPage() {
     setIsDeleting(true);
 
     const { id, name } = productToDelete;
+    deleteCustomProductFromStorage(id);
 
     try {
       const res = await fetch(`/api/products/${id}`, { method: "DELETE" });

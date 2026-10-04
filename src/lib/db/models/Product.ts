@@ -1,6 +1,7 @@
 import mongoose, { Schema, Model } from "mongoose";
 
 export interface IProduct {
+  id?: string;
   slug: string;
   name: string;
   subtitle: string;
@@ -10,7 +11,8 @@ export interface IProduct {
   originalPrice?: number;
   rating: number;
   reviewCount: number;
-  isNewPiece: boolean;
+  isNew?: boolean;
+  isNewPiece?: boolean;
   isBestSeller: boolean;
   isFeatured: boolean;
   inStock: boolean;
@@ -26,6 +28,7 @@ export interface IProduct {
 
 const ProductSchema = new Schema<IProduct>(
   {
+    id: { type: String, index: true },
     slug: { type: String, required: true, unique: true, index: true },
     name: { type: String, required: true },
     subtitle: { type: String, default: "" },
@@ -35,7 +38,8 @@ const ProductSchema = new Schema<IProduct>(
     originalPrice: { type: Number },
     rating: { type: Number, default: 5.0 },
     reviewCount: { type: Number, default: 0 },
-    isNewPiece: { type: Boolean, default: false },
+    isNew: { type: Boolean, default: true },
+    isNewPiece: { type: Boolean, default: true },
     isBestSeller: { type: Boolean, default: false },
     isFeatured: { type: Boolean, default: false },
     inStock: { type: Boolean, default: true },
@@ -54,7 +58,7 @@ const ProductSchema = new Schema<IProduct>(
     careInstructions: { type: String, default: "Specialist dry clean only." },
     images: [{ type: String, required: true }],
   },
-  { timestamps: true }
+  { timestamps: true, suppressReservedKeysWarning: true }
 );
 
 export const ProductModel: Model<IProduct> =

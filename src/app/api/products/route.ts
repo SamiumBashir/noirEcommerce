@@ -24,7 +24,12 @@ export async function GET(request: NextRequest) {
       }
       const dbProducts = await ProductModel.find(filter).lean();
       if (dbProducts.length > 0) {
-        return NextResponse.json({ success: true, count: dbProducts.length, data: dbProducts });
+        const normalized = dbProducts.map((p: any) => ({
+          ...p,
+          id: p.id || p.slug || (p._id ? p._id.toString() : ""),
+          isNew: p.isNew !== undefined ? p.isNew : (p.isNewPiece !== undefined ? p.isNewPiece : true),
+        }));
+        return NextResponse.json({ success: true, count: normalized.length, data: normalized });
       }
     }
 
@@ -111,7 +116,13 @@ export async function POST(request: NextRequest) {
     if (conn) {
       try {
         const created = await ProductModel.create(newProduct);
-        return NextResponse.json({ success: true, data: created }, { status: 201 });
+        const doc = created.toObject ? created.toObject() : created;
+        const normalized = {
+          ...doc,
+          id: doc.id || doc.slug || newProduct.id,
+          isNew: doc.isNew !== undefined ? doc.isNew : newProduct.isNew,
+        };
+        return NextResponse.json({ success: true, data: normalized }, { status: 201 });
       } catch (dbErr: any) {
         console.warn("MongoDB create failed, saved in memory:", dbErr.message);
       }

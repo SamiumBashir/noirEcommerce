@@ -24,13 +24,13 @@ export function ProductCard({
   const { addToCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
   const [isHovered, setIsHovered] = useState(false);
-  const [selectedSize, setSelectedSize] = useState<string>(product.sizes[0] || "M");
+  const [selectedSize, setSelectedSize] = useState<string>(product.sizes?.[0] || "M");
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
   const [imgError, setImgError] = useState(false);
 
   const fallbackImg = "https://images.unsplash.com/photo-1544022613-e87ca75a784a?q=80&w=1200&auto=format&fit=crop";
-  const primaryImg = imgError ? fallbackImg : (product.images[0] || fallbackImg);
+  const primaryImg = imgError ? fallbackImg : (product.images?.[0] || fallbackImg);
 
   const isFavorited = isInWishlist(product.id);
 
@@ -49,7 +49,7 @@ export function ProductCard({
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const defaultColor = product.colors[0]?.name || "Black";
+    const defaultColor = product.colors?.[0]?.name || "Black";
     const added = addToCart(product, defaultColor, selectedSize, 1);
     if (added) {
       setIsAdded(true);
@@ -89,13 +89,13 @@ export function ProductCard({
           className={`object-cover transition-transform duration-700 ease-out ${
             isHovered ? "scale-105" : "scale-100"
           } ${
-            product.images[1] && isHovered ? "opacity-0" : "opacity-100"
+            product.images?.[1] && isHovered ? "opacity-0" : "opacity-100"
           } transition-opacity duration-500`}
           onError={() => setImgError(true)}
         />
 
         {/* Secondary Image on Hover */}
-        {product.images[1] && (
+        {product.images?.[1] && (
           <Image
             src={product.images[1]}
             alt={`${product.name} alternate view`}
@@ -165,10 +165,10 @@ export function ProductCard({
             <div className="bg-[#F5F3EF] p-2 flex flex-col gap-2 shadow-lg">
               <div className="flex items-center justify-between text-[11px] font-medium text-[#111111]">
                 <span>SELECT SIZE</span>
-                <span className="text-[#6B6B6B]">{product.colors[0]?.name}</span>
+                <span className="text-[#6B6B6B]">{product.colors?.[0]?.name || "Noir"}</span>
               </div>
               <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
-                {product.sizes.map((size) => (
+                {(product.sizes || ["S", "M", "L", "XL"]).map((size) => (
                   <button
                     key={size}
                     onClick={(e) => {
@@ -221,9 +221,9 @@ export function ProductCard({
 
         <div className="flex items-center justify-between mt-1 text-[11px] text-[#6B6B6B]">
           <span>{product.subtitle || product.category}</span>
-          {product.colors.length > 1 && (
+          {(product.colors?.length || 0) > 1 && (
             <div className="flex items-center gap-1">
-              {product.colors.map((c) => (
+              {product.colors?.map((c) => (
                 <span
                   key={c.name}
                   className="w-2.5 h-2.5 rounded-full border border-black/20"

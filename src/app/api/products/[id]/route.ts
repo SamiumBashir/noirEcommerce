@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import mongoose from "mongoose";
 import { PRODUCTS, getLiveProducts, saveLiveProduct, deleteLiveProduct } from "@/lib/data/products";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { ProductModel } from "@/lib/db/models/Product";
@@ -13,11 +14,20 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const conn = await connectToDatabase();
     if (conn) {
+      const orConditions: any[] = [{ slug: id }, { id: id }];
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        orConditions.push({ _id: id });
+      }
       const dbProduct = await ProductModel.findOne({
-        $or: [{ _id: id }, { slug: id }, { id }],
+        $or: orConditions,
       }).lean();
       if (dbProduct) {
-        return NextResponse.json({ success: true, data: dbProduct });
+        const normalized = {
+          ...dbProduct,
+          id: (dbProduct as any).id || (dbProduct as any).slug || (dbProduct as any)._id?.toString(),
+          isNew: (dbProduct as any).isNew !== undefined ? (dbProduct as any).isNew : (dbProduct as any).isNewPiece,
+        };
+        return NextResponse.json({ success: true, data: normalized });
       }
     }
 
@@ -54,13 +64,22 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const conn = await connectToDatabase();
     if (conn) {
       try {
+        const orConditions: any[] = [{ slug: id }, { id: id }];
+        if (mongoose.Types.ObjectId.isValid(id)) {
+          orConditions.push({ _id: id });
+        }
         const updated = await ProductModel.findOneAndUpdate(
-          { $or: [{ _id: id }, { slug: id }] },
+          { $or: orConditions },
           { $set: body },
           { new: true }
-        );
+        ).lean();
         if (updated) {
-          return NextResponse.json({ success: true, data: updated });
+          const normalized = {
+            ...updated,
+            id: (updated as any).id || (updated as any).slug || (updated as any)._id?.toString(),
+            isNew: (updated as any).isNew !== undefined ? (updated as any).isNew : (updated as any).isNewPiece,
+          };
+          return NextResponse.json({ success: true, data: normalized });
         }
       } catch (dbErr: any) {
         console.warn("MongoDB update failed, updated in memory:", dbErr.message);
@@ -89,8 +108,12 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const conn = await connectToDatabase();
     if (conn) {
       try {
+        const orConditions: any[] = [{ slug: id }, { id: id }];
+        if (mongoose.Types.ObjectId.isValid(id)) {
+          orConditions.push({ _id: id });
+        }
         await ProductModel.findOneAndDelete({
-          $or: [{ _id: id }, { slug: id }],
+          $or: orConditions,
         });
       } catch (dbErr: any) {
         console.warn("MongoDB delete failed:", dbErr.message);

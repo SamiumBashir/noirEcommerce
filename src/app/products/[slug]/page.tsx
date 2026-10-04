@@ -21,6 +21,7 @@ import { formatPrice } from "@/lib/utils";
 import { useCart } from "@/lib/context/CartContext";
 import { useWishlist } from "@/lib/context/WishlistContext";
 import { ProductCard } from "@/components/ui/ProductCard";
+import { getCustomProductsFromStorage } from "@/lib/utils/productStorage";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -30,24 +31,37 @@ export default function ProductDetailPage({ params }: PageProps) {
   const resolvedParams = use(params);
   const router = useRouter();
 
-  const [product, setProduct] = useState<Product | undefined>(() =>
-    PRODUCTS.find((p) => p.slug === resolvedParams.slug || p.id === resolvedParams.slug)
-  );
+  const [product, setProduct] = useState<Product | undefined>(() => {
+    const base = PRODUCTS.find((p) => p.slug === resolvedParams.slug || p.id === resolvedParams.slug);
+    if (base) return base;
+    if (typeof window !== "undefined") {
+      const custom = getCustomProductsFromStorage();
+      return custom.find((p) => p.slug === resolvedParams.slug || p.id === resolvedParams.slug);
+    }
+    return undefined;
+  });
   const [isLoading, setIsLoading] = useState(!product);
 
   useEffect(() => {
-    if (!product) {
-      fetch(`/api/products/${resolvedParams.slug}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success && data.data) {
-            setProduct(data.data);
-          }
-        })
-        .catch(() => {})
-        .finally(() => setIsLoading(false));
+    if (!product && typeof window !== "undefined") {
+      const custom = getCustomProductsFromStorage();
+      const local = custom.find((p) => p.slug === resolvedParams.slug || p.id === resolvedParams.slug);
+      if (local) {
+        setProduct(local);
+        setIsLoading(false);
+      }
     }
-  }, [product, resolvedParams.slug]);
+
+    fetch(`/api/products/${resolvedParams.slug}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.data) {
+          setProduct(data.data);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
+  }, [resolvedParams.slug]);
 
   const { addToCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();

@@ -16,9 +16,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { PRODUCTS, Product } from "@/lib/data/products";
 import { ProductCard } from "@/components/ui/ProductCard";
 import { formatPrice } from "@/lib/utils";
+import { mergeWithCustomProducts } from "@/lib/utils/productStorage";
 
 // Category definitions
 const CATEGORIES = ["ALL", "MEN", "WOMEN", "ACCESSORIES", "NEW ARRIVALS"] as const;
+const DEFAULT_MAX_PRICE = 2500;
 
 // Palette definitions with smart substring matching
 const COLOR_PALETTES = [
@@ -41,23 +43,30 @@ function ShopContent() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const [allProducts, setAllProducts] = useState<Product[]>(PRODUCTS);
+  const [allProducts, setAllProducts] = useState<Product[]>(() => {
+    if (typeof window !== "undefined") {
+      return mergeWithCustomProducts(PRODUCTS);
+    }
+    return PRODUCTS;
+  });
   const [category, setCategory] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [selectedPalette, setSelectedPalette] = useState<string>("ALL");
-  const [maxPrice, setMaxPrice] = useState<number>(600);
+  const [maxPrice, setMaxPrice] = useState<number>(DEFAULT_MAX_PRICE);
   const [sortBy, setSortBy] = useState<string>("featured");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [gridCols, setGridCols] = useState<2 | 4>(4);
 
-  // Sync latest catalog pieces from API
+  // Sync latest catalog pieces from local storage & backend API
   useEffect(() => {
+    setAllProducts((prev) => mergeWithCustomProducts(prev.length > 0 ? prev : PRODUCTS));
+
     fetch("/api/products")
       .then((r) => r.json())
       .then((data) => {
         if (data.success && Array.isArray(data.data) && data.data.length > 0) {
-          setAllProducts(data.data);
+          setAllProducts(mergeWithCustomProducts(data.data));
         }
       })
       .catch(() => {});
@@ -115,7 +124,7 @@ function ShopContent() {
     setSearchQuery("");
     setSelectedSizes([]);
     setSelectedPalette("ALL");
-    setMaxPrice(600);
+    setMaxPrice(DEFAULT_MAX_PRICE);
     setSortBy("featured");
     router.replace(pathname, { scroll: false });
   };
@@ -124,10 +133,10 @@ function ShopContent() {
   const categoryCounts = useMemo(() => {
     return {
       ALL: allProducts.length,
-      MEN: allProducts.filter((p) => p.category === "MEN").length,
-      WOMEN: allProducts.filter((p) => p.category === "WOMEN").length,
-      ACCESSORIES: allProducts.filter((p) => p.category === "ACCESSORIES").length,
-      "NEW ARRIVALS": allProducts.filter((p) => p.isNew || p.category === "NEW ARRIVALS").length,
+      MEN: allProducts.filter((p) => (p.category || "").toUpperCase() === "MEN").length,
+      WOMEN: allProducts.filter((p) => (p.category || "").toUpperCase() === "WOMEN").length,
+      ACCESSORIES: allProducts.filter((p) => (p.category || "").toUpperCase() === "ACCESSORIES").length,
+      "NEW ARRIVALS": allProducts.filter((p) => p.isNew || (p.category || "").toUpperCase() === "NEW ARRIVALS").length,
     };
   }, [allProducts]);
 
@@ -136,9 +145,10 @@ function ShopContent() {
     return allProducts.filter((product) => {
       // Category filter
       if (category !== "ALL") {
+        const prodCat = (product.category || "").toUpperCase();
         if (category === "NEW ARRIVALS") {
-          if (!product.isNew && product.category !== "NEW ARRIVALS") return false;
-        } else if (product.category !== category) {
+          if (!product.isNew && prodCat !== "NEW ARRIVALS") return false;
+        } else if (prodCat !== category.toUpperCase()) {
           return false;
         }
       }
@@ -146,21 +156,21 @@ function ShopContent() {
       // Keyword Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchesName = product.name.toLowerCase().includes(q);
+        const matchesName = (product.name || "").toLowerCase().includes(q);
         const matchesSubtitle = (product.subtitle || "").toLowerCase().includes(q);
-        const matchesCategory = product.category.toLowerCase().includes(q);
-        const matchesDetails = (product.details || []).some((d) => d.toLowerCase().includes(q));
+        const matchesCategory = (product.category || "").toLowerCase().includes(q);
+        const matchesDetails = (product.details || []).some((d) => d && d.toLowerCase().includes(q));
         if (!matchesName && !matchesSubtitle && !matchesCategory && !matchesDetails) return false;
       }
 
       // Price limit
-      if (product.price > maxPrice) {
+      if (maxPrice < DEFAULT_MAX_PRICE && product.price > maxPrice) {
         return false;
       }
 
       // Sizes filter
       if (selectedSizes.length > 0) {
-        const hasSize = product.sizes.some((s) => selectedSizes.includes(s));
+        const hasSize = (product.sizes || []).some((s) => selectedSizes.includes(s));
         if (!hasSize) return false;
       }
 
@@ -168,8 +178,8 @@ function ShopContent() {
       if (selectedPalette !== "ALL") {
         const palette = COLOR_PALETTES.find((cp) => cp.id === selectedPalette);
         if (palette && palette.matches.length > 0) {
-          const matchesColor = product.colors.some((color) => {
-            const cName = color.name.toLowerCase();
+          const matchesColor = (product.colors || []).some((color) => {
+            const cName = (color?.name || "").toLowerCase();
             return palette.matches.some((kw) => cName.includes(kw));
           });
           if (!matchesColor) return false;
@@ -180,18 +190,18 @@ function ShopContent() {
     }).sort((a, b) => {
       if (sortBy === "price-low") return a.price - b.price;
       if (sortBy === "price-high") return b.price - a.price;
-      if (sortBy === "rating") return b.rating - a.rating;
+      if (sortBy === "rating") return (b.rating || 5) - (a.rating || 5);
       if (sortBy === "newest") return (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0);
       return 0; // featured
     });
-  }, [category, searchQuery, maxPrice, selectedSizes, selectedPalette, sortBy]);
+  }, [allProducts, category, searchQuery, maxPrice, selectedSizes, selectedPalette, sortBy]);
 
   // Check if any filter is active
   const hasActiveFilters =
     category !== "ALL" ||
     selectedSizes.length > 0 ||
     selectedPalette !== "ALL" ||
-    maxPrice < 600 ||
+    maxPrice < DEFAULT_MAX_PRICE ||
     searchQuery.trim().length > 0;
 
   const activePaletteObj = COLOR_PALETTES.find((cp) => cp.id === selectedPalette);
@@ -411,11 +421,11 @@ function ShopContent() {
               ))}
 
               {/* Max price chip */}
-              {maxPrice < 600 && (
+              {maxPrice < DEFAULT_MAX_PRICE && (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-[#D8D5CF] text-[#111111] text-[11px]">
                   Under {formatPrice(maxPrice)}
                   <button
-                    onClick={() => setMaxPrice(600)}
+                    onClick={() => setMaxPrice(DEFAULT_MAX_PRICE)}
                     className="hover:text-red-500 transition-colors"
                   >
                     <X className="w-3 h-3" />
@@ -583,18 +593,18 @@ function ShopContent() {
                   <input
                     type="range"
                     min="50"
-                    max="600"
-                    step="10"
+                    max={DEFAULT_MAX_PRICE}
+                    step="25"
                     value={maxPrice}
                     onChange={(e) => setMaxPrice(Number(e.target.value))}
                     className="w-full accent-[#111111] cursor-pointer"
                   />
                   <div className="flex justify-between text-[10px] text-[#6B6B6B] font-mono">
                     <span>$50</span>
-                    <span>$600</span>
+                    <span>{formatPrice(DEFAULT_MAX_PRICE)}</span>
                   </div>
                   <p className="text-[10px] text-[#6B6B6B] pt-1">
-                    Showing pieces from raw essentials ($75) to luxury overcoats ($520).
+                    Showing atelier pieces across our complete price spectrum.
                   </p>
                 </div>
               </div>
