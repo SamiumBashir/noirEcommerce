@@ -112,10 +112,10 @@ export function BrandStory() {
         </div>
 
         {/* Editorial Fashion Photography Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center pt-8">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8 items-center pt-4 sm:pt-8">
           {/* Main Large Editorial Image */}
           <div className="md:col-span-7 relative">
-            <Reveal direction="left" duration={1.2}>
+            <Reveal direction="left" duration={1.0}>
               <div className="relative aspect-[4/5] sm:aspect-[16/11] overflow-hidden bg-[#EAE8E2]">
                 <div ref={parallaxImgRef} className="relative w-full h-[120%] -top-[10%]">
                   <Image
@@ -135,9 +135,9 @@ export function BrandStory() {
           </div>
 
           {/* Secondary Editorial Composition */}
-          <div className="md:col-span-5 md:pl-8 space-y-8">
-            <Reveal direction="right" delay={0.2}>
-              <div className="relative aspect-[3/4] overflow-hidden bg-[#EAE8E2]">
+          <div className="md:col-span-5 md:pl-8 space-y-6 sm:space-y-8">
+            <Reveal direction="right" delay={0.15}>
+              <div className="relative aspect-[4/5] sm:aspect-[3/4] overflow-hidden bg-[#EAE8E2]">
                 <Image
                   src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=1000&auto=format&fit=crop"
                   alt="NOIR Kinetic Portrait"

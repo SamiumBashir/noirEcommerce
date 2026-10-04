@@ -14,47 +14,47 @@ interface RevealProps {
 export function Reveal({
   children,
   delay = 0,
-  duration = 1.1,
+  duration = 0.85,
   direction = "up",
   className = "",
 }: RevealProps) {
-  const getClipPathVariants = () => {
+  const getVariants = () => {
     switch (direction) {
       case "up":
         return {
-          initial: { clipPath: "polygon(0% 100%, 100% 100%, 100% 100%, 0% 100%)", y: 40 },
-          animate: { clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)", y: 0 },
+          initial: { opacity: 0, y: 35 },
+          animate: { opacity: 1, y: 0 },
         };
       case "down":
         return {
-          initial: { clipPath: "polygon(0% 0%, 100% 0%, 100% 0%, 0% 0%)", y: -40 },
-          animate: { clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)", y: 0 },
+          initial: { opacity: 0, y: -35 },
+          animate: { opacity: 1, y: 0 },
         };
       case "left":
         return {
-          initial: { clipPath: "polygon(100% 0%, 100% 0%, 100% 100%, 100% 100%)", x: 40 },
-          animate: { clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)", x: 0 },
+          initial: { opacity: 0, x: -35 },
+          animate: { opacity: 1, x: 0 },
         };
       case "right":
         return {
-          initial: { clipPath: "polygon(0% 0%, 0% 0%, 0% 100%, 0% 100%)", x: -40 },
-          animate: { clipPath: "polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%)", x: 0 },
+          initial: { opacity: 0, x: 35 },
+          animate: { opacity: 1, x: 0 },
         };
     }
   };
 
-  const variants = getClipPathVariants();
+  const variants = getVariants();
 
   return (
     <div className={`overflow-hidden ${className}`}>
       <motion.div
         initial={variants.initial}
         whileInView={variants.animate}
-        viewport={{ once: true, margin: "-60px" }}
+        viewport={{ once: true, amount: 0.05 }}
         transition={{
           duration,
           delay,
-          ease: [0.25, 1, 0.5, 1],
+          ease: [0.22, 1, 0.36, 1],
         }}
       >
         {children}
