@@ -3,6 +3,11 @@ import { PRODUCTS, getLiveProducts, saveLiveProduct } from "@/lib/data/products"
 import { ProductValidationSchema } from "@/lib/validations/product";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { ProductModel } from "@/lib/db/models/Product";
+import {
+  getCustomProductsFromFile,
+  saveCustomProductToFile,
+  mergeWithSeedProducts,
+} from "@/lib/server/productPersistence";
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,40 +15,46 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get("category");
     const query = searchParams.get("q");
 
+    // 1. Load custom products from MongoDB if available
+    let customProducts: any[] = [];
     const conn = await connectToDatabase();
     if (conn) {
-      const filter: any = {};
-      if (category && category !== "ALL") {
-        filter.category = category.toUpperCase();
-      }
-      if (query) {
-        filter.$or = [
-          { name: { $regex: query, $options: "i" } },
-          { description: { $regex: query, $options: "i" } },
-        ];
-      }
-      const dbProducts = await ProductModel.find(filter).lean();
-      if (dbProducts.length > 0) {
-        const normalized = dbProducts.map((p: any) => ({
-          ...p,
-          id: p.id || p.slug || (p._id ? p._id.toString() : ""),
-          isNew: p.isNew !== undefined ? p.isNew : (p.isNewPiece !== undefined ? p.isNewPiece : true),
-        }));
-        return NextResponse.json({ success: true, count: normalized.length, data: normalized });
+      try {
+        const dbProducts = await ProductModel.find({}).lean();
+        if (dbProducts.length > 0) {
+          customProducts = dbProducts.map((p: any) => ({
+            ...p,
+            id: p.id || p.slug || (p._id ? p._id.toString() : ""),
+            isNew: p.isNew !== undefined ? p.isNew : (p.isNewPiece !== undefined ? p.isNewPiece : true),
+          }));
+        }
+      } catch (dbErr: any) {
+        console.warn("MongoDB fetch failed, falling back to disk storage:", dbErr.message);
       }
     }
 
-    // Live in-memory catalog fallback
-    let results = [...getLiveProducts()];
+    // 2. If no MongoDB products, load from persistent server-side JSON file
+    if (customProducts.length === 0) {
+      customProducts = getCustomProductsFromFile();
+    }
+
+    // 3. Always merge custom products with baseline catalog so seed pieces are never lost
+    const combined = mergeWithSeedProducts(customProducts, PRODUCTS);
+
+    // 4. Apply filtering (category, query)
+    let results = combined;
     if (category && category !== "ALL") {
-      results = results.filter((p) => p.category === category.toUpperCase());
+      results = results.filter(
+        (p) => (p.category || "").toUpperCase() === category.toUpperCase()
+      );
     }
     if (query) {
       const q = query.toLowerCase();
       results = results.filter(
         (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q)
+          (p.name || "").toLowerCase().includes(q) ||
+          (p.subtitle || "").toLowerCase().includes(q) ||
+          (p.description || "").toLowerCase().includes(q)
       );
     }
 
@@ -108,23 +119,30 @@ export async function POST(request: NextRequest) {
       images: data.images,
     };
 
-    // Update live in-memory catalogue
+    // 1. Persist to server disk storage (survives all restarts and serves across all browsers)
+    saveCustomProductToFile(newProduct);
+
+    // 2. Update live in-memory catalogue
     saveLiveProduct(newProduct);
 
-    // Persist to MongoDB if connection available
+    // 3. Persist to MongoDB if connection available
     const conn = await connectToDatabase();
     if (conn) {
       try {
-        const created = await ProductModel.create(newProduct);
-        const doc = created.toObject ? created.toObject() : created;
+        const created = await ProductModel.findOneAndUpdate(
+          { $or: [{ id: newProduct.id }, { slug: newProduct.slug }] },
+          { $set: newProduct },
+          { upsert: true, new: true }
+        ).lean();
+        const doc = created || newProduct;
         const normalized = {
           ...doc,
-          id: doc.id || doc.slug || newProduct.id,
-          isNew: doc.isNew !== undefined ? doc.isNew : newProduct.isNew,
+          id: (doc as any).id || (doc as any).slug || newProduct.id,
+          isNew: (doc as any).isNew !== undefined ? (doc as any).isNew : newProduct.isNew,
         };
         return NextResponse.json({ success: true, data: normalized }, { status: 201 });
       } catch (dbErr: any) {
-        console.warn("MongoDB create failed, saved in memory:", dbErr.message);
+        console.warn("MongoDB create failed, saved to disk storage:", dbErr.message);
       }
     }
 

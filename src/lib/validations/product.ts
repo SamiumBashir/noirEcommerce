@@ -4,8 +4,24 @@ export const ProductValidationSchema = z.object({
   name: z.string().min(2, "Product name is required"),
   slug: z.string().optional(),
   subtitle: z.string().optional().default(""),
-  category: z.enum(["MEN", "WOMEN", "ACCESSORIES", "NEW ARRIVALS"]),
-  gender: z.enum(["Men", "Women", "Unisex"]).default("Unisex"),
+  category: z
+    .string()
+    .transform((val) => {
+      const upper = val.toUpperCase();
+      if (["MEN", "WOMEN", "ACCESSORIES", "NEW ARRIVALS"].includes(upper)) {
+        return upper as "MEN" | "WOMEN" | "ACCESSORIES" | "NEW ARRIVALS";
+      }
+      return "MEN" as const;
+    }),
+  gender: z
+    .string()
+    .transform((val) => {
+      const lower = val.toLowerCase();
+      if (lower === "men" || lower === "man") return "Men" as const;
+      if (lower === "women" || lower === "woman") return "Women" as const;
+      return "Unisex" as const;
+    })
+    .default("Unisex"),
   price: z.number().positive("Price must be positive"),
   originalPrice: z.number().positive().optional(),
   stockCount: z.number().int().nonnegative().default(10),

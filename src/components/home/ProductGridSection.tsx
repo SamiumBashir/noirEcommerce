@@ -1,18 +1,36 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { PRODUCTS } from "@/lib/data/products";
+import { PRODUCTS, Product } from "@/lib/data/products";
 import { ProductCard } from "@/components/ui/ProductCard";
 import { StaggerContainer } from "@/components/animations/StaggerContainer";
+import { mergeWithCustomProducts } from "@/lib/utils/productStorage";
 
 export function ProductGridSection() {
   const [selectedFilter, setSelectedFilter] = useState<"ALL" | "MEN" | "WOMEN" | "ACCESSORIES">("ALL");
+  const [catalog, setCatalog] = useState<Product[]>(() => {
+    if (typeof window !== "undefined") {
+      return mergeWithCustomProducts(PRODUCTS);
+    }
+    return PRODUCTS;
+  });
 
-  const filteredProducts = PRODUCTS.filter((p) => {
+  useEffect(() => {
+    fetch("/api/products")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+          setCatalog(mergeWithCustomProducts(data.data));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const filteredProducts = catalog.filter((p) => {
     if (selectedFilter === "ALL") return true;
-    return p.category === selectedFilter;
+    return (p.category || "").toUpperCase() === selectedFilter;
   });
 
   return (

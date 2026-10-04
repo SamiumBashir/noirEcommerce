@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Product, PRODUCTS } from "@/lib/data/products";
+import { mergeWithCustomProducts } from "@/lib/utils/productStorage";
 
 interface WishlistContextType {
   wishlistIds: string[];
@@ -45,7 +46,25 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
 
   const isInWishlist = (productId: string) => wishlistIds.includes(productId);
 
-  const wishlistItems = PRODUCTS.filter((p) => wishlistIds.includes(p.id));
+  const [catalog, setCatalog] = useState<Product[]>(() => {
+    if (typeof window !== "undefined") {
+      return mergeWithCustomProducts(PRODUCTS);
+    }
+    return PRODUCTS;
+  });
+
+  useEffect(() => {
+    fetch("/api/products")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+          setCatalog(data.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const wishlistItems = catalog.filter((p) => wishlistIds.includes(p.id));
 
   return (
     <WishlistContext.Provider

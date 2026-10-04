@@ -7,6 +7,7 @@ import { Search, X, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PRODUCTS, Product } from "@/lib/data/products";
 import { formatPrice } from "@/lib/utils";
+import { mergeWithCustomProducts } from "@/lib/utils/productStorage";
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -16,7 +17,26 @@ interface SearchModalProps {
 export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Product[]>([]);
+  const [catalog, setCatalog] = useState<Product[]>(() => {
+    if (typeof window !== "undefined") {
+      return mergeWithCustomProducts(PRODUCTS);
+    }
+    return PRODUCTS;
+  });
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetch("/api/products")
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+            setCatalog(mergeWithCustomProducts(data.data));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -39,19 +59,19 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     }
 
     const q = query.toLowerCase().trim();
-    const matched = PRODUCTS.filter((p) => {
+    const matched = catalog.filter((p) => {
       return (
-        p.name.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q) ||
-        p.subtitle.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q) ||
-        p.gender.toLowerCase().includes(q) ||
-        p.details.some((d) => d.toLowerCase().includes(q))
+        (p.name || "").toLowerCase().includes(q) ||
+        (p.category || "").toLowerCase().includes(q) ||
+        (p.subtitle || "").toLowerCase().includes(q) ||
+        (p.description || "").toLowerCase().includes(q) ||
+        (p.gender || "").toLowerCase().includes(q) ||
+        (p.details || []).some((d) => d && d.toLowerCase().includes(q))
       );
     });
 
     setResults(matched);
-  }, [query]);
+  }, [query, catalog]);
 
   // Handle ESC key
   useEffect(() => {

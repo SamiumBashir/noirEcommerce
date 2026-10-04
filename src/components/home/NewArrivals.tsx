@@ -4,13 +4,32 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { PRODUCTS } from "@/lib/data/products";
+import { PRODUCTS, Product } from "@/lib/data/products";
 import { formatPrice } from "@/lib/utils";
 import { Reveal } from "@/components/animations/Reveal";
 import { StaggerContainer } from "@/components/animations/StaggerContainer";
+import { mergeWithCustomProducts } from "@/lib/utils/productStorage";
 
 export function NewArrivals() {
-  const newArrivals = PRODUCTS.filter((p) => p.isNew || p.category === "NEW ARRIVALS").slice(0, 3);
+  const [newArrivals, setNewArrivals] = React.useState<Product[]>(() => {
+    if (typeof window !== "undefined") {
+      const merged = mergeWithCustomProducts(PRODUCTS);
+      return merged.filter((p) => p.isNew || p.category === "NEW ARRIVALS").slice(0, 3);
+    }
+    return PRODUCTS.filter((p) => p.isNew || p.category === "NEW ARRIVALS").slice(0, 3);
+  });
+
+  React.useEffect(() => {
+    fetch("/api/products")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+          const list = mergeWithCustomProducts(data.data);
+          setNewArrivals(list.filter((p) => p.isNew || p.category === "NEW ARRIVALS").slice(0, 3));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <section className="w-full py-28 md:py-36 bg-[#F5F3EF] px-6 sm:px-12 md:px-16 border-b border-[#D8D5CF]">
