@@ -54,6 +54,8 @@ export default function AdminPage() {
   // Product Modals State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Orders state
   const [ordersList, setOrdersList] = useState([
@@ -193,11 +195,12 @@ export default function AdminPage() {
     setTimeout(() => setToast(null), 4500);
   };
 
-  // Handle Product Deletion with API persistence
-  const handleDeleteProduct = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to remove "${name}" from the atelier catalog?`)) {
-      return;
-    }
+  // Execute Confirmed Product Deletion with API persistence
+  const handleConfirmDelete = async () => {
+    if (!productToDelete) return;
+    setIsDeleting(true);
+
+    const { id, name } = productToDelete;
 
     try {
       const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
@@ -218,8 +221,11 @@ export default function AdminPage() {
         type: "success",
         text: `"${name}" removed from current catalogue session.`,
       });
+    } finally {
+      setIsDeleting(false);
+      setProductToDelete(null);
+      setTimeout(() => setToast(null), 4500);
     }
-    setTimeout(() => setToast(null), 4500);
   };
 
   // Handle Order Status Update
@@ -638,7 +644,7 @@ export default function AdminPage() {
                   }}
                   className="px-5 py-2.5 bg-[#111111] text-[#F5F3EF] text-xs uppercase tracking-wider font-medium hover:bg-black transition-colors flex items-center gap-2 shadow-sm"
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className="w-4 h-4 pointer-events-none" />
                   <span>Upload & Create Silhouette</span>
                 </button>
               </div>
@@ -741,15 +747,15 @@ export default function AdminPage() {
                             className="p-1.5 text-[#111111] hover:bg-black/5 rounded transition-colors"
                             title="Edit Piece Details"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            <Edit2 className="w-3.5 h-3.5 pointer-events-none" />
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDeleteProduct(p.id, p.name)}
+                            onClick={() => setProductToDelete({ id: p.id, name: p.name })}
                             className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
                             title="Delete Piece"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-3.5 h-3.5 pointer-events-none" />
                           </button>
                         </td>
                       </tr>
@@ -895,6 +901,55 @@ export default function AdminPage() {
           productToEdit={editingProduct}
           onSave={handleSaveProduct}
         />
+
+        {/* Non-blocking Luxury Delete Confirmation Modal */}
+        {productToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
+            <div className="w-full max-w-md bg-[#F5F3EF] border border-[#D8D5CF] shadow-2xl p-6 space-y-5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-mono tracking-widest text-red-600 block mb-1">
+                    // DELETION SAFEGUARD
+                  </span>
+                  <h3 className="font-editorial text-2xl uppercase tracking-tight text-[#111111]">
+                    Confirm Piece Removal
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setProductToDelete(null)}
+                  disabled={isDeleting}
+                  className="p-1.5 text-[#6B6B6B] hover:text-[#111111] hover:bg-black/5 rounded transition-colors"
+                >
+                  <X className="w-4 h-4 pointer-events-none" />
+                </button>
+              </div>
+
+              <p className="text-xs text-[#6B6B6B] leading-relaxed">
+                Are you sure you want to permanently remove <strong className="text-[#111111] font-semibold font-mono">"{productToDelete.name}"</strong> from the atelier catalogue? This action cannot be undone.
+              </p>
+
+              <div className="pt-3 border-t border-[#D8D5CF] flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setProductToDelete(null)}
+                  disabled={isDeleting}
+                  className="px-4 py-2 border border-[#D8D5CF] text-xs uppercase tracking-wider text-[#111111] hover:bg-black/5 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  disabled={isDeleting}
+                  className="px-5 py-2 bg-red-600 text-white text-xs uppercase tracking-wider font-medium hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isDeleting ? "Removing..." : "Delete Piece"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

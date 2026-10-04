@@ -373,7 +373,7 @@ export function ProductFormModal({
             onClick={onClose}
             className="p-2 text-[#6B6B6B] hover:text-[#111111] hover:bg-black/5 rounded-full transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5 pointer-events-none" />
           </button>
         </div>
 
