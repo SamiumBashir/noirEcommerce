@@ -29,7 +29,7 @@ export function ParallaxImage({
 
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReducedMotion) return;
+    if (prefersReducedMotion || window.innerWidth < 1024) return;
 
     const container = containerRef.current;
     const imageWrapper = imageWrapperRef.current;

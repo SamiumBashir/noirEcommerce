@@ -22,10 +22,7 @@ export function LookbookSection() {
   // Smooth cinematic internal image parallax (cards remain perfectly stationary while photos float inside)
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReducedMotion) return;
-
-    // Restrict internal parallax to desktop screens to keep mobile scroll 100% native and fluid
-    if (window.innerWidth < 1024) return;
+    if (prefersReducedMotion || window.innerWidth < 1024) return;
 
     const container = containerRef.current;
     if (!container) return;

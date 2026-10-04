@@ -19,16 +19,15 @@ export function SmoothScrollProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     // Check prefers-reduced-motion
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
     if (prefersReducedMotion) {
       return;
     }
 
-    // Skip Lenis smooth scroll on mobile / touch devices for native momentum scrolling and 0 forced reflows
-    const isMobileTouch =
+    // On mobile/touch devices, use native GPU-accelerated momentum scrolling to prevent forced reflows
+    const isMobile =
       window.innerWidth < 1024 ||
-      window.matchMedia("(pointer: coarse)").matches;
-    if (isMobileTouch) {
+      ("ontouchstart" in window && !window.matchMedia("(pointer: fine)").matches);
+    if (isMobile) {
       return;
     }
 

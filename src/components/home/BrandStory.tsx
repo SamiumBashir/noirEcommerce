@@ -18,10 +18,7 @@ export function BrandStory() {
 
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReducedMotion) return;
-
-    // Skip heavy ScrollTrigger on mobile touch
-    if (window.innerWidth < 768) return;
+    if (prefersReducedMotion || window.innerWidth < 1024) return;
 
     const container = containerRef.current;
     const marquee = marqueeRef.current;
@@ -122,12 +119,10 @@ export function BrandStory() {
               <div className="relative aspect-[4/5] sm:aspect-[16/11] overflow-hidden bg-[#EAE8E2]">
                 <div ref={parallaxImgRef} className="relative w-full h-[120%] -top-[10%]">
                   <Image
-                    src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop"
+                    src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1400&auto=format&fit=crop"
                     alt="NOIR Editorial Magazine Silhouette"
                     fill
-                    loading="lazy"
-                    quality={80}
-                    sizes="(max-width: 640px) 90vw, (max-width: 1024px) 55vw, 60vw"
+                    sizes="(max-width: 768px) 100vw, 60vw"
                     className="object-cover filter contrast-[1.04]"
                   />
                 </div>
@@ -144,12 +139,10 @@ export function BrandStory() {
             <Reveal direction="right" delay={0.2}>
               <div className="relative aspect-[3/4] overflow-hidden bg-[#EAE8E2]">
                 <Image
-                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop"
+                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=1000&auto=format&fit=crop"
                   alt="NOIR Kinetic Portrait"
                   fill
-                  loading="lazy"
-                  quality={80}
-                  sizes="(max-width: 640px) 90vw, (max-width: 1024px) 40vw, 35vw"
+                  sizes="(max-width: 768px) 100vw, 40vw"
                   className="object-cover"
                 />
               </div>
