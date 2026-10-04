@@ -38,7 +38,9 @@ export function CategorySection() {
                 src={category.image}
                 alt={category.name}
                 fill
-                sizes="(max-width: 768px) 100vw, 50vw"
+                loading="lazy"
+                quality={80}
+                sizes="(max-width: 640px) 90vw, (max-width: 1024px) 50vw, 45vw"
                 className="object-cover transition-transform duration-1000 ease-out group-hover:scale-108 filter brightness-[0.78] contrast-[1.05]"
               />
 

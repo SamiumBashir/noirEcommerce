@@ -85,7 +85,8 @@ export function ProductCard({
           src={primaryImg}
           alt={product.name}
           fill
-          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, (max-width: 1280px) 25vw, 300px"
+          quality={80}
           className={`object-cover transition-transform duration-700 ease-out ${
             isHovered ? "scale-105" : "scale-100"
           } ${
@@ -100,7 +101,9 @@ export function ProductCard({
             src={product.images[1]}
             alt={`${product.name} alternate view`}
             fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            loading="lazy"
+            sizes="(max-width: 640px) 90vw, (max-width: 1024px) 45vw, (max-width: 1280px) 25vw, 300px"
+            quality={75}
             className={`object-cover transition-all duration-700 ease-out ${
               isHovered ? "opacity-100 scale-105" : "opacity-0 scale-100"
             }`}

@@ -46,7 +46,9 @@ export function NewArrivals() {
                   src={newArrivals[0].images[0]}
                   alt={newArrivals[0].name}
                   fill
-                  sizes="(max-width: 768px) 100vw, 33vw"
+                  loading="lazy"
+                  quality={80}
+                  sizes="(max-width: 640px) 90vw, (max-width: 1024px) 40vw, 33vw"
                   className="object-cover transition-transform duration-700 ease-out group-hover:scale-106"
                 />
                 <div className="absolute top-4 left-4 bg-[#111111] text-[#F5F3EF] text-[10px] uppercase tracking-widest px-2.5 py-1">
@@ -83,7 +85,9 @@ export function NewArrivals() {
                   src={newArrivals[1].images[0]}
                   alt={newArrivals[1].name}
                   fill
-                  sizes="(max-width: 768px) 100vw, 42vw"
+                  loading="lazy"
+                  quality={80}
+                  sizes="(max-width: 640px) 90vw, (max-width: 1024px) 50vw, 42vw"
                   className="object-cover transition-transform duration-700 ease-out group-hover:scale-106"
                 />
                 <div className="absolute top-4 left-4 bg-[#111111] text-[#F5F3EF] text-[10px] uppercase tracking-widest px-2.5 py-1">
@@ -120,7 +124,9 @@ export function NewArrivals() {
                   src={newArrivals[2].images[0]}
                   alt={newArrivals[2].name}
                   fill
-                  sizes="(max-width: 768px) 100vw, 25vw"
+                  loading="lazy"
+                  quality={80}
+                  sizes="(max-width: 640px) 90vw, (max-width: 1024px) 30vw, 25vw"
                   className="object-cover transition-transform duration-700 ease-out group-hover:scale-106"
                 />
                 <div className="absolute top-4 left-4 bg-[#111111] text-[#F5F3EF] text-[10px] uppercase tracking-widest px-2.5 py-1">

@@ -42,12 +42,15 @@ export function FeaturedCollection() {
 
     if (prefersReducedMotion) return;
 
+    // On mobile devices, allow native horizontal touch scroll without GSAP overhead or forced reflows
+    if (isMobile) return;
+
     const ctx = gsap.context(() => {
       const cards = gsap.utils.toArray<HTMLElement>(".featured-card", section);
       const cardInners = gsap.utils.toArray<HTMLElement>(".featured-card-inner", section);
       const modelWrappers = gsap.utils.toArray<HTMLElement>(".model-img-wrapper", section);
 
-      // 1. Entrance animation as section comes into full view (timing synchronized with scroll entry)
+      // 1. Entrance animation as section comes into full view (desktop only)
       if (header) {
         gsap.fromTo(
           header,
@@ -59,7 +62,7 @@ export function FeaturedCollection() {
             ease: "power3.out",
             scrollTrigger: {
               trigger: section,
-              start: "top 85%", // Starts gracefully as section enters viewport
+              start: "top 85%",
               end: "top 30%",
               toggleActions: "play none none reverse",
             },
@@ -85,9 +88,6 @@ export function FeaturedCollection() {
           },
         }
       );
-
-      // On mobile devices, allow touch horizontal scroll without pin lock
-      if (isMobile) return;
 
       const totalScroll = track.scrollWidth - window.innerWidth + 120;
 
@@ -204,7 +204,8 @@ export function FeaturedCollection() {
                       src={product.images[0]}
                       alt={product.name}
                       fill
-                      sizes="(max-width: 768px) 280px, 400px"
+                      sizes="(max-width: 640px) 280px, (max-width: 1024px) 340px, 400px"
+                      quality={80}
                       className="object-cover transition-transform duration-700 ease-out group-hover:scale-105 filter brightness-95"
                     />
                   </div>

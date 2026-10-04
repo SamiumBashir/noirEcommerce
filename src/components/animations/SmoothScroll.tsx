@@ -24,6 +24,14 @@ export function SmoothScrollProvider({ children }: { children: React.ReactNode }
       return;
     }
 
+    // Skip Lenis smooth scroll on mobile / touch devices for native momentum scrolling and 0 forced reflows
+    const isMobileTouch =
+      window.innerWidth < 1024 ||
+      window.matchMedia("(pointer: coarse)").matches;
+    if (isMobileTouch) {
+      return;
+    }
+
     const lenis = new Lenis({
       duration: 1.2,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),

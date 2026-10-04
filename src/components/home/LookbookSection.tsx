@@ -24,6 +24,9 @@ export function LookbookSection() {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (prefersReducedMotion) return;
 
+    // Restrict internal parallax to desktop screens to keep mobile scroll 100% native and fluid
+    if (window.innerWidth < 1024) return;
+
     const container = containerRef.current;
     if (!container) return;
 
