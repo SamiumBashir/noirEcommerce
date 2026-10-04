@@ -67,69 +67,82 @@ export default function AdminPage() {
   const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Orders state
-  const [ordersList, setOrdersList] = useState([
+  // Orders interface & state
+  interface AdminOrder {
+    id: string;
+    customer: string;
+    email: string;
+    phone?: string;
+    date: string;
+    total: number;
+    payableAmountBdt?: number;
+    status: string;
+    paymentStatus: "PENDING" | "PAID" | "FAILED" | "CANCELLED" | "REFUNDED" | string;
+    paymentMethod: string;
+    transactionId?: string;
+    items: string;
+  }
+
+  const [ordersList, setOrdersList] = useState<AdminOrder[]>([
     {
       id: "ORD-9482-NR",
       customer: "Alexander Vance",
       email: "alexander@noir.studio",
-      date: "2026-09-28",
+      phone: "+880 1712-345678",
+      date: "Sep 28, 2026",
       total: 374,
+      payableAmountBdt: 44880,
       status: "In Atelier",
-      paymentStatus: "Settled (Visa •••• 8892)",
+      paymentStatus: "PAID",
+      paymentMethod: "SSLCOMMERZ (Visa)",
+      transactionId: "TXN-CC-9982410",
       items: "NOIR Motion Jacket, Shadow Oversized Tee",
     },
     {
       id: "ORD-8821-NR",
       customer: "Camille Dupont",
       email: "camille@dupont.fr",
-      date: "2026-09-27",
+      phone: "+880 1798-765432",
+      date: "Sep 27, 2026",
       total: 440,
+      payableAmountBdt: 52800,
       status: "Dispatched",
-      paymentStatus: "Settled (Amex •••• 1004)",
+      paymentStatus: "PAID",
+      paymentMethod: "SSLCOMMERZ (Mastercard)",
+      transactionId: "TXN-MC-8821049",
       items: "Sculptural Wool Coat",
-    },
-    {
-      id: "ORD-7619-NR",
-      customer: "Kenji Sato",
-      email: "kenji@sato.jp",
-      date: "2026-09-26",
-      total: 295,
-      status: "Delivered",
-      paymentStatus: "Settled (Mastercard •••• 4410)",
-      items: "Monolith Leather Tote",
-    },
-    {
-      id: "ORD-6102-NR",
-      customer: "Soren Lindqvist",
-      email: "soren@lindqvist.se",
-      date: "2026-09-25",
-      total: 165,
-      status: "Delivered",
-      paymentStatus: "Settled (Apple Pay)",
-      items: "Motion Cargo",
     },
     {
       id: "ORD-5541-BD",
       customer: "Tanjim Ahmed",
       email: "tanjim@dhaka.atelier",
-      date: "2026-09-24",
+      phone: "+880 1711-223344",
+      date: "Sep 24, 2026",
       total: 210,
+      payableAmountBdt: 25200,
       status: "In Atelier",
-      paymentStatus: "Settled (bKash 017••••678)",
+      paymentStatus: "PAID",
+      paymentMethod: "SSLCOMMERZ (bKash)",
+      transactionId: "TXN-BK-5541902",
       items: "Artisan Leather Loafer",
     },
     {
       id: "ORD-4190-NR",
       customer: "Elena Rostova",
       email: "elena@rostova.com",
-      date: "2026-09-23",
+      phone: "+880 1912-334455",
+      date: "Sep 23, 2026",
       total: 185,
+      payableAmountBdt: 22200,
       status: "Processing",
-      paymentStatus: "Pending (Cash on Delivery)",
+      paymentStatus: "PENDING",
+      paymentMethod: "COD",
+      transactionId: "COD-4190-NR",
       items: "Shadow Oversized Tee",
     },
   ]);
+
+  const [orderFilter, setOrderFilter] = useState<"ALL" | "PENDING" | "PAID" | "FAILED" | "CANCELLED" | "REFUNDED">("ALL");
 
   // Customers state
   const [customersList, setCustomersList] = useState([
@@ -167,7 +180,7 @@ export default function AdminPage() {
     },
   ]);
 
-  // Load live products from backend on mount or authentication
+  // Load live products & orders from backend on mount or authentication
   useEffect(() => {
     async function loadProducts() {
       try {
@@ -183,8 +196,36 @@ export default function AdminPage() {
         setProductList((prev) => mergeWithCustomProducts(prev.length > 0 ? prev : PRODUCTS));
       }
     }
+
+    async function loadOrders() {
+      try {
+        const res = await fetch("/api/orders");
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+          const mapped: AdminOrder[] = data.data.map((o: any) => ({
+            id: o.orderId || o.orderNumber || o._id,
+            customer: o.customerName || "Patron",
+            email: o.customerEmail || "",
+            phone: o.customerPhone || "",
+            date: o.createdAt ? new Date(o.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Recent",
+            total: o.totalAmount || o.total || 0,
+            payableAmountBdt: o.payableAmountBdt,
+            status: o.orderStatus || o.status || "PROCESSING",
+            paymentStatus: o.paymentStatus || "PENDING",
+            paymentMethod: o.paymentMethod || "Online",
+            transactionId: o.transactionId || "-",
+            items: (o.products || o.items || []).map((it: any) => `${it.quantity}x ${it.name}`).join(", ") || "Silhouettes",
+          }));
+          setOrdersList(mapped);
+        }
+      } catch (err) {
+        console.warn("Could not load live orders:", err);
+      }
+    }
+
     if (isAdmin) {
       loadProducts();
+      loadOrders();
     }
   }, [isAdmin]);
 
@@ -246,11 +287,32 @@ export default function AdminPage() {
     }
   };
 
-  // Handle Order Status Update
-  const handleUpdateOrderStatus = (orderId: string, newStatus: string) => {
-    setOrdersList((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
-    );
+  // Handle Order Status Update with Server Sync
+  const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderStatus: newStatus }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setOrdersList((prev) =>
+          prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+        );
+        setToast({
+          type: "success",
+          text: `Order ${orderId} dispatch status updated to "${newStatus}"`,
+        });
+      } else {
+        throw new Error(data.error || "Update failed");
+      }
+    } catch {
+      setOrdersList((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+      );
+    }
+    setTimeout(() => setToast(null), 4500);
   };
 
   // Handle Admin Login submission
@@ -787,6 +849,34 @@ export default function AdminPage() {
           {/* 3. Orders Tab */}
           {activeTab === "orders" && (
             <div className="space-y-6">
+              {/* Payment Status Filter Tabs */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-[#D8D5CF] p-3.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {(["ALL", "PENDING", "PAID", "FAILED", "CANCELLED", "REFUNDED"] as const).map((flt) => {
+                    const count = flt === "ALL" 
+                      ? ordersList.length 
+                      : ordersList.filter((o) => (o.paymentStatus || "").toUpperCase() === flt).length;
+                    return (
+                      <button
+                        key={flt}
+                        type="button"
+                        onClick={() => setOrderFilter(flt)}
+                        className={`px-3 py-1.5 text-xs font-mono tracking-wider transition-colors ${
+                          orderFilter === flt
+                            ? "bg-[#111111] text-[#F5F3EF]"
+                            : "bg-[#F5F3EF] text-[#6B6B6B] hover:text-[#111111]"
+                        }`}
+                      >
+                        {flt} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+                <span className="text-[11px] font-mono text-[#6B6B6B]">
+                  {ordersList.filter((o) => orderFilter === "ALL" || (o.paymentStatus || "").toUpperCase() === orderFilter).length} Manifest Orders
+                </span>
+              </div>
+
               <div className="overflow-x-auto bg-white border border-[#D8D5CF]">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
@@ -796,47 +886,90 @@ export default function AdminPage() {
                       <th className="p-4">Date</th>
                       <th className="p-4">Items</th>
                       <th className="p-4">Total</th>
-                      <th className="p-4">Payment Channel</th>
-                      <th className="p-4">Status & Update</th>
+                      <th className="p-4">Payment Method</th>
+                      <th className="p-4">Payment Status</th>
+                      <th className="p-4">Transaction ID</th>
+                      <th className="p-4">Dispatch Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#D8D5CF]">
-                    {ordersList.map((order) => (
-                      <tr key={order.id} className="hover:bg-black/[0.02]">
-                        <td className="p-4 font-mono font-medium text-[#111111]">
-                          {order.id}
-                        </td>
-                        <td className="p-4">
-                          <span className="font-medium text-[#111111] block">
-                            {order.customer}
-                          </span>
-                          <span className="text-[10px] text-[#6B6B6B]">{order.email}</span>
-                        </td>
-                        <td className="p-4 text-[#6B6B6B]">{order.date}</td>
-                        <td className="p-4 max-w-xs truncate text-[#6B6B6B]">{order.items}</td>
-                        <td className="p-4 font-semibold text-[#111111]">
-                          {formatPrice(order.total)}
-                        </td>
-                        <td className="p-4">
-                          <span className="inline-block px-2.5 py-1 bg-[#EAE8E2] border border-[#D8D5CF] text-[10px] font-mono font-medium text-[#111111]">
-                            {order.paymentStatus}
-                          </span>
-                        </td>
-                        <td className="p-4">
-                          <select
-                            value={order.status}
-                            onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
-                            className="bg-[#F5F3EF] border border-[#D8D5CF] px-2.5 py-1 text-xs text-[#111111] font-medium cursor-pointer focus:outline-none"
-                          >
-                            <option value="Processing">Processing</option>
-                            <option value="In Atelier">In Atelier</option>
-                            <option value="Dispatched">Dispatched</option>
-                            <option value="Delivered">Delivered</option>
-                            <option value="Cancelled">Cancelled</option>
-                          </select>
-                        </td>
-                      </tr>
-                    ))}
+                    {ordersList
+                      .filter((o) => orderFilter === "ALL" || (o.paymentStatus || "").toUpperCase() === orderFilter)
+                      .map((order) => {
+                        const statusUpper = (order.paymentStatus || "").toUpperCase();
+                        const isPaid = statusUpper === "PAID";
+                        const isPending = statusUpper === "PENDING";
+                        const isFailed = statusUpper === "FAILED" || statusUpper === "CANCELLED";
+                        const isRefunded = statusUpper === "REFUNDED";
+
+                        return (
+                          <tr key={order.id} className="hover:bg-black/[0.02]">
+                            <td className="p-4 font-mono font-medium text-[#111111]">
+                              {order.id}
+                            </td>
+                            <td className="p-4">
+                              <span className="font-medium text-[#111111] block">
+                                {order.customer}
+                              </span>
+                              <span className="text-[10px] text-[#6B6B6B] block">{order.email}</span>
+                              {order.phone && (
+                                <span className="text-[10px] font-mono text-[#6B6B6B] block">{order.phone}</span>
+                              )}
+                            </td>
+                            <td className="p-4 text-[#6B6B6B]">{order.date}</td>
+                            <td className="p-4 max-w-xs truncate text-[#6B6B6B]" title={order.items}>{order.items}</td>
+                            <td className="p-4 font-semibold text-[#111111]">
+                              <div>{formatPrice(order.total)}</div>
+                              {order.payableAmountBdt ? (
+                                <div className="text-[10px] text-[#6B6B6B] font-mono">
+                                  ৳{order.payableAmountBdt.toLocaleString()} BDT
+                                </div>
+                              ) : null}
+                            </td>
+                            <td className="p-4">
+                              <span className="font-mono text-xs text-[#111111]">
+                                {order.paymentMethod}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-mono uppercase font-medium ${
+                                  isPaid
+                                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                                    : isPending
+                                    ? "bg-amber-50 text-amber-800 border border-amber-200"
+                                    : isFailed
+                                    ? "bg-red-50 text-red-800 border border-red-200"
+                                    : isRefunded
+                                    ? "bg-purple-50 text-purple-800 border border-purple-200"
+                                    : "bg-[#EAE8E2] text-[#111111] border border-[#D8D5CF]"
+                                }`}
+                              >
+                                {isPaid && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                                {isPending && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
+                                {isFailed && <span className="w-1.5 h-1.5 rounded-full bg-red-500" />}
+                                <span>{order.paymentStatus}</span>
+                              </span>
+                            </td>
+                            <td className="p-4 font-mono text-[11px] text-[#6B6B6B]">
+                              {order.transactionId || "-"}
+                            </td>
+                            <td className="p-4">
+                              <select
+                                value={order.status}
+                                onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
+                                className="bg-[#F5F3EF] border border-[#D8D5CF] px-2.5 py-1 text-xs text-[#111111] font-medium cursor-pointer focus:outline-none"
+                              >
+                                <option value="Processing">Processing</option>
+                                <option value="In Atelier">In Atelier</option>
+                                <option value="Dispatched">Dispatched</option>
+                                <option value="Delivered">Delivered</option>
+                                <option value="Cancelled">Cancelled</option>
+                              </select>
+                            </td>
+                          </tr>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>

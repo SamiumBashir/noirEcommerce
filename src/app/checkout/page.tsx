@@ -11,14 +11,13 @@ import {
   CreditCard,
   ArrowRight,
   ShoppingBag,
-  Smartphone,
-  Banknote,
   Lock,
-  Sparkles,
-  RefreshCw,
+  RotateCcw,
   CheckCircle2,
   Wallet,
-  Info,
+  Building2,
+  Phone,
+  AlertCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "@/lib/context/CartContext";
@@ -35,46 +34,27 @@ export default function CheckoutPage() {
 
   // Form states
   const [email, setEmail] = useState(user?.email || "");
+  const [phone, setPhone] = useState("+880 1712-345678");
   const [firstName, setFirstName] = useState(user?.name.split(" ")[0] || "");
   const [lastName, setLastName] = useState(user?.name.split(" ")[1] || "");
   const [address, setAddress] = useState(user?.addresses[0]?.street || "");
   const [city, setCity] = useState(user?.addresses[0]?.city || "");
   const [state, setState] = useState(user?.addresses[0]?.state || "");
   const [postalCode, setPostalCode] = useState(user?.addresses[0]?.postalCode || "");
-  const [country, setCountry] = useState("United States");
+  const [country, setCountry] = useState("Bangladesh");
 
   const [deliveryMethod, setDeliveryMethod] = useState<"standard" | "priority">("standard");
 
-  type PaymentGateway = "card" | "bkash" | "nagad" | "applepay" | "cod";
-  const [paymentGateway, setPaymentGateway] = useState<PaymentGateway>("card");
+  // Payment Selection: Online Payment (SSLCOMMERZ) vs Cash on Delivery
+  type PaymentMethodType = "online" | "cod";
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>("online");
 
-  // Card payment state
-  const [cardNumber, setCardNumber] = useState("4532 8820 9182 8892");
-  const [cardExpiry, setCardExpiry] = useState("12/28");
-  const [cardCvc, setCardCvc] = useState("742");
-  const [cardName, setCardName] = useState(user?.name || "Alexander Vance");
-  const [cardBrand, setCardBrand] = useState<"visa" | "mastercard" | "amex">("visa");
-
-  // bKash payment state
-  const [bkashNumber, setBkashNumber] = useState("01712345678");
-  const [bkashOtp, setBkashOtp] = useState("482910");
-  const [bkashPin, setBkashPin] = useState("•••••");
-  const [bkashOtpNotice, setBkashOtpNotice] = useState("");
-
-  // Nagad payment state
-  const [nagadNumber, setNagadNumber] = useState("01987654321");
-  const [nagadOtp, setNagadOtp] = useState("783921");
-  const [nagadPin, setNagadPin] = useState("••••");
-  const [nagadOtpNotice, setNagadOtpNotice] = useState("");
-
-  // Apple Pay / Google Pay state
-  const [walletType, setWalletType] = useState<"apple" | "google">("apple");
-  const [biometricStatus, setBiometricStatus] = useState<"idle" | "scanning" | "verified">("verified");
-
-  // Cash on Delivery state
-  const [codPhone, setCodPhone] = useState("+880 1712-345678");
+  // Cash on Delivery specific state
   const [codInstructions, setCodInstructions] = useState("Call 30 mins before arrival at doorstep");
-  const [codAgreed, setCodAgreed] = useState(true);
+
+  // Processing & Error states
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
 
   const [createdOrder, setCreatedOrder] = useState<UserOrder | null>(null);
 
@@ -90,7 +70,6 @@ export default function CheckoutPage() {
         setState(user.addresses[0].state);
         setPostalCode(user.addresses[0].postalCode);
       }
-      setCardName(user.name);
     }
   }, [user]);
 
@@ -99,58 +78,126 @@ export default function CheckoutPage() {
   const BDT_RATE = 120;
   const grandTotalBdt = Math.round(grandTotal * BDT_RATE);
 
-  const handleNextStep = (e: React.FormEvent) => {
+  const handleNextStep = async (e: React.FormEvent) => {
     e.preventDefault();
+    setCheckoutError("");
+
     if (currentStep < 4) {
       setCurrentStep((prev) => (prev + 1) as CheckoutStep);
-    } else if (currentStep === 4) {
-      // Determine payment metadata based on selected gateway
-      let paymentMethodStr = "";
-      let transactionIdStr = "";
+      return;
+    }
 
-      if (paymentGateway === "card") {
-        const last4 = cardNumber.replace(/\D/g, "").slice(-4) || "8892";
-        const brandName = cardBrand === "visa" ? "Visa" : cardBrand === "mastercard" ? "Mastercard" : "Amex";
-        paymentMethodStr = `${brandName} (•••• ${last4})`;
-        transactionIdStr = `TXN-CC-${Math.floor(100000 + Math.random() * 900000)}`;
-      } else if (paymentGateway === "bkash") {
-        const formattedPhone = bkashNumber.length >= 7
-          ? `${bkashNumber.slice(0, 3)}••••${bkashNumber.slice(-3)}`
-          : bkashNumber;
-        paymentMethodStr = `bKash Wallet (${formattedPhone})`;
-        transactionIdStr = `TRX-${Math.random().toString(36).substring(2, 8).toUpperCase()}-BK`;
-      } else if (paymentGateway === "nagad") {
-        const formattedPhone = nagadNumber.length >= 7
-          ? `${nagadNumber.slice(0, 3)}••••${nagadNumber.slice(-3)}`
-          : nagadNumber;
-        paymentMethodStr = `Nagad Wallet (${formattedPhone})`;
-        transactionIdStr = `NGD-${Math.random().toString(36).substring(2, 8).toUpperCase()}-BD`;
-      } else if (paymentGateway === "applepay") {
-        paymentMethodStr = walletType === "apple" ? "Apple Pay (Biometric)" : "Google Pay (1-Click)";
-        transactionIdStr = `WAL-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-      } else if (paymentGateway === "cod") {
-        paymentMethodStr = "Cash on Delivery (Doorstep)";
-        transactionIdStr = `COD-${Math.floor(1000 + Math.random() * 9000)}-COLLECT`;
+    if (currentStep === 4) {
+      // 1. Basic validation
+      if (!email || !firstName || !lastName || !address || !city) {
+        setCheckoutError("Please complete all required shipping & contact details.");
+        return;
       }
 
-      // Place Order
-      const newOrder = addOrder({
-        total: grandTotal,
-        paymentMethod: paymentMethodStr,
-        transactionId: transactionIdStr,
-        items: cart.map((item) => ({
-          name: item.product.name,
-          size: item.size,
-          color: item.color,
-          quantity: item.quantity,
-          price: item.product.price,
-          image: item.product.images[0],
-        })),
-      });
+      setIsProcessing(true);
 
-      setCreatedOrder(newOrder);
-      clearCart();
-      setCurrentStep(5);
+      if (paymentMethod === "online") {
+        // Online Payment via SSLCOMMERZ Official Flow
+        try {
+          const payload = {
+            customerName: `${firstName} ${lastName}`.trim(),
+            customerEmail: email,
+            customerPhone: phone || "+8801700000000",
+            shippingAddress: {
+              street: address,
+              city: city || "Dhaka",
+              state: state || "Dhaka",
+              postalCode: postalCode || "1212",
+              country: country || "Bangladesh",
+            },
+            deliveryMethod,
+            userId: user?.id,
+            items: cart.map((item) => ({
+              productId: item.productId || item.product.id || item.product.slug,
+              size: item.size,
+              color: item.color,
+              quantity: item.quantity,
+            })),
+          };
+
+          const res = await fetch("/api/payment/sslcommerz/initiate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+
+          const data = await res.json();
+
+          if (!res.ok || !data.success || !data.gatewayPageUrl) {
+            throw new Error(data.error || "Failed to initiate SSLCOMMERZ gateway session.");
+          }
+
+          // Redirect customer to SSLCOMMERZ PCI-DSS certified hosted gateway
+          window.location.href = data.gatewayPageUrl;
+        } catch (err: any) {
+          console.error("Payment initiation error:", err);
+          setCheckoutError(err.message || "Failed to connect to SSLCOMMERZ gateway. Please try again.");
+          setIsProcessing(false);
+        }
+      } else {
+        // Cash on Delivery
+        try {
+          const payload = {
+            customerName: `${firstName} ${lastName}`.trim(),
+            customerEmail: email,
+            customerPhone: phone || "+8801700000000",
+            shippingAddress: {
+              street: address,
+              city: city || "Dhaka",
+              state: state || "Dhaka",
+              postalCode: postalCode || "1212",
+              country: country || "Bangladesh",
+            },
+            deliveryMethod,
+            paymentMethod: "COD",
+            userId: user?.id,
+            items: cart.map((item) => ({
+              productId: item.productId || item.product.id || item.product.slug,
+              size: item.size,
+              color: item.color,
+              quantity: item.quantity,
+            })),
+          };
+
+          const res = await fetch("/api/orders", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            throw new Error(data.error || "Failed to place Cash on Delivery order");
+          }
+
+          const newOrder = addOrder({
+            total: grandTotal,
+            paymentMethod: "Cash on Delivery (Doorstep)",
+            transactionId: data.data?.trackingNumber || `COD-${data.data?.orderId}`,
+            items: cart.map((item) => ({
+              name: item.product.name,
+              size: item.size,
+              color: item.color,
+              quantity: item.quantity,
+              price: item.product.price,
+              image: item.product.images[0],
+            })),
+          });
+
+          setCreatedOrder(newOrder);
+          clearCart();
+          setCurrentStep(5);
+        } catch (err: any) {
+          setCheckoutError(err.message || "Failed to place COD order.");
+        } finally {
+          setIsProcessing(false);
+        }
+      }
     }
   };
 
@@ -242,21 +289,21 @@ export default function CheckoutPage() {
           </Link>
           <span className="text-[11px] uppercase tracking-widest text-[#6B6B6B] flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>256-Bit Encrypted Secure Checkout</span>
+            <span>SSLCOMMERZ 256-Bit Encrypted Secure Checkout</span>
           </span>
         </div>
 
         {/* Step Indicator */}
         <div className="py-6 flex items-center justify-between border-b border-[#D8D5CF] overflow-x-auto no-scrollbar">
           {steps.map((s, idx) => (
-            <div key={s.num} className="flex items-center gap-2 shrink-0">
+            <div key={s.num} className="flex items-center gap-2 whitespace-nowrap">
               <span
-                className={`w-6 h-6 rounded-full text-xs font-mono flex items-center justify-center ${
+                className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono ${
                   currentStep === s.num
                     ? "bg-[#111111] text-[#F5F3EF]"
                     : currentStep > s.num
                     ? "bg-emerald-600 text-white"
-                    : "border border-[#D8D5CF] text-[#6B6B6B]"
+                    : "bg-[#D8D5CF] text-[#6B6B6B]"
                 }`}
               >
                 {currentStep > s.num ? <Check className="w-3 h-3" /> : s.num}
@@ -277,7 +324,7 @@ export default function CheckoutPage() {
           ))}
         </div>
 
-        {/* Step 5: Confirmation Screen */}
+        {/* Step 5: Confirmation Screen (For COD Orders) */}
         {currentStep === 5 ? (
           <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
@@ -297,7 +344,7 @@ export default function CheckoutPage() {
             </h1>
 
             <p className="text-xs sm:text-sm text-[#6B6B6B] leading-relaxed max-w-lg mx-auto font-light">
-              Your garments are now entering the tailored dispatch queue. We have transmitted your bespoke packaging receipt and tracking documentation to <strong className="text-[#111111]">{email}</strong>.
+              Your order has been recorded into our atelier production queue. We have transmitted full tracking details to <strong className="text-[#111111]">{email}</strong>.
             </p>
 
             {createdOrder && (
@@ -321,44 +368,23 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                {/* Payment Gateway Settlement Receipt */}
                 <div className="p-4 bg-white border border-[#D8D5CF] space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-[10px] uppercase font-mono tracking-widest text-[#6B6B6B]">
-                      Settled Payment Channel
+                      Payment Method
                     </span>
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] uppercase font-mono tracking-wider font-semibold rounded-full bg-emerald-100 text-emerald-800">
                       <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                      <span>{createdOrder.paymentMethod?.includes("Cash on Delivery") ? "Verified for Delivery" : "Payment Authorized"}</span>
+                      <span>{createdOrder.paymentMethod}</span>
                     </span>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-[#111111]">{createdOrder.paymentMethod}</span>
-                    </div>
-                    {createdOrder.transactionId && (
-                      <span className="font-mono text-[11px] text-[#6B6B6B]">
-                        Ref: {createdOrder.transactionId}
-                      </span>
-                    )}
+                  <div className="text-xs text-[#6B6B6B] pt-1 border-t border-[#D8D5CF]/50 flex justify-between">
+                    <span>Doorstep Payable:</span>
+                    <span className="font-semibold text-[#111111]">
+                      {formatPrice(createdOrder.total)} / ৳{Math.round(createdOrder.total * 120).toLocaleString()} BDT
+                    </span>
                   </div>
-
-                  {createdOrder.paymentMethod?.includes("bKash") || createdOrder.paymentMethod?.includes("Nagad") ? (
-                    <div className="text-[11px] font-mono text-[#6B6B6B] pt-1 border-t border-[#D8D5CF]/50 flex justify-between">
-                      <span>MFS BDT Equivalent:</span>
-                      <span className="font-semibold text-[#111111]">
-                        ৳{Math.round(createdOrder.total * 120).toLocaleString()} BDT (Rate: 1 USD = ৳120)
-                      </span>
-                    </div>
-                  ) : createdOrder.paymentMethod?.includes("Cash on Delivery") ? (
-                    <div className="text-[11px] text-[#6B6B6B] pt-1 border-t border-[#D8D5CF]/50 flex justify-between">
-                      <span>Doorstep Collection:</span>
-                      <span className="font-medium text-[#111111]">
-                        {formatPrice(createdOrder.total)} / approx. ৳{Math.round(createdOrder.total * 120).toLocaleString()} BDT
-                      </span>
-                    </div>
-                  ) : null}
                 </div>
 
                 <div className="space-y-2">
@@ -376,7 +402,7 @@ export default function CheckoutPage() {
                 </div>
 
                 <div className="pt-3 border-t border-[#D8D5CF] flex justify-between text-sm font-medium text-[#111111]">
-                  <span>Total Amount</span>
+                  <span>Total Due</span>
                   <span>{formatPrice(createdOrder.total)}</span>
                 </div>
               </div>
@@ -413,18 +439,34 @@ export default function CheckoutPage() {
                     1. Contact Information
                   </h2>
 
-                  <div className="space-y-2">
-                    <label className="text-[11px] uppercase tracking-widest text-[#6B6B6B] block">
-                      Email Address (For Order Tracking)
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="alexander@noir.studio"
-                      className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#111111]"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[11px] uppercase tracking-widest text-[#6B6B6B] block">
+                        Email Address (For Order Tracking)
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="alexander@noir.studio"
+                        className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#111111]"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[11px] uppercase tracking-widest text-[#6B6B6B] block">
+                        Contact Phone (For SMS & Courier)
+                      </label>
+                      <input
+                        type="tel"
+                        required
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="+880 1712-345678"
+                        className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#111111]"
+                      />
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -476,7 +518,7 @@ export default function CheckoutPage() {
                       required
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
-                      placeholder="740 Park Avenue, Apt 14B"
+                      placeholder="Road 11, House 42, Banani"
                       className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#111111]"
                     />
                   </div>
@@ -491,18 +533,20 @@ export default function CheckoutPage() {
                         required
                         value={city}
                         onChange={(e) => setCity(e.target.value)}
+                        placeholder="Dhaka"
                         className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#111111]"
                       />
                     </div>
                     <div className="space-y-2">
                       <label className="text-[11px] uppercase tracking-widest text-[#6B6B6B] block">
-                        State / Province
+                        State / Division
                       </label>
                       <input
                         type="text"
                         required
                         value={state}
                         onChange={(e) => setState(e.target.value)}
+                        placeholder="Dhaka Division"
                         className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#111111]"
                       />
                     </div>
@@ -515,6 +559,7 @@ export default function CheckoutPage() {
                         required
                         value={postalCode}
                         onChange={(e) => setPostalCode(e.target.value)}
+                        placeholder="1213"
                         className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#111111]"
                       />
                     </div>
@@ -527,20 +572,19 @@ export default function CheckoutPage() {
                     <select
                       value={country}
                       onChange={(e) => setCountry(e.target.value)}
-                      className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#111111]"
+                      className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#111111] cursor-pointer"
                     >
+                      <option value="Bangladesh">Bangladesh</option>
                       <option value="United States">United States</option>
                       <option value="United Kingdom">United Kingdom</option>
-                      <option value="France">France</option>
-                      <option value="Germany">Germany</option>
-                      <option value="Japan">Japan</option>
                       <option value="Canada">Canada</option>
+                      <option value="France">France</option>
                     </select>
                   </div>
                 </motion.div>
               )}
 
-              {/* Step 3: Delivery Method */}
+              {/* Step 3: Delivery Options */}
               {currentStep === 3 && (
                 <motion.div
                   initial={{ opacity: 0, x: -10 }}
@@ -548,56 +592,77 @@ export default function CheckoutPage() {
                   className="space-y-6"
                 >
                   <h2 className="font-editorial text-2xl uppercase tracking-tight text-[#111111]">
-                    3. Delivery Courier Service
+                    3. Delivery Tier
                   </h2>
 
                   <div className="space-y-3">
                     <label
                       onClick={() => setDeliveryMethod("standard")}
-                      className={`flex items-start justify-between p-5 border cursor-pointer transition-all ${
+                      className={`flex items-start justify-between p-4 border cursor-pointer transition-all ${
                         deliveryMethod === "standard"
                           ? "border-[#111111] bg-white ring-1 ring-[#111111]"
                           : "border-[#D8D5CF] bg-[#EAE8E2]/50 hover:border-[#111111]"
                       }`}
                     >
-                      <div className="space-y-1">
-                        <span className="text-xs uppercase tracking-wider font-semibold text-[#111111] block">
-                          Atelier Standard Express (Carbon Neutral)
-                        </span>
-                        <p className="text-[11px] text-[#6B6B6B]">
-                          Delivered in custom luxury matte sleeve within 2-4 business days.
-                        </p>
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="radio"
+                          name="delivery"
+                          checked={deliveryMethod === "standard"}
+                          onChange={() => setDeliveryMethod("standard")}
+                          className="mt-1"
+                        />
+                        <div>
+                          <span className="text-xs font-semibold uppercase tracking-wider text-[#111111] block">
+                            Standard Courier Delivery
+                          </span>
+                          <span className="text-[11px] text-[#6B6B6B] block mt-0.5">
+                            2 - 4 Business Days • Doorstep signature verification
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-xs font-semibold text-[#111111]">
-                        {subtotal >= 250 ? "FREE" : "$25"}
+                      <span className="text-xs font-mono font-medium text-[#111111]">
+                        {subtotal >= 250 ? "Complimentary" : formatPrice(25)}
                       </span>
                     </label>
 
                     <label
                       onClick={() => setDeliveryMethod("priority")}
-                      className={`flex items-start justify-between p-5 border cursor-pointer transition-all ${
+                      className={`flex items-start justify-between p-4 border cursor-pointer transition-all ${
                         deliveryMethod === "priority"
                           ? "border-[#111111] bg-white ring-1 ring-[#111111]"
                           : "border-[#D8D5CF] bg-[#EAE8E2]/50 hover:border-[#111111]"
                       }`}
                     >
-                      <div className="space-y-1">
-                        <span className="text-xs uppercase tracking-wider font-semibold text-[#111111] block">
-                          Atelier Priority Courier (Next Day by 12 PM)
-                        </span>
-                        <p className="text-[11px] text-[#6B6B6B]">
-                          Dedicated courier dispatch with temperature and crease-prevention guarantee.
-                        </p>
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="radio"
+                          name="delivery"
+                          checked={deliveryMethod === "priority"}
+                          onChange={() => setDeliveryMethod("priority")}
+                          className="mt-1"
+                        />
+                        <div>
+                          <span className="text-xs font-semibold uppercase tracking-wider text-[#111111] block flex items-center gap-1.5">
+                            <span>Priority Atelier Express</span>
+                            <span className="px-1.5 py-0.5 bg-black text-white text-[9px] font-mono tracking-widest uppercase">
+                              Rush
+                            </span>
+                          </span>
+                          <span className="text-[11px] text-[#6B6B6B] block mt-0.5">
+                            Next Business Day • Dedicated hand-delivered garment garment bag
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-xs font-semibold text-[#111111]">
-                        $45
+                      <span className="text-xs font-mono font-medium text-[#111111]">
+                        {formatPrice(45)}
                       </span>
                     </label>
                   </div>
                 </motion.div>
               )}
 
-              {/* Step 4: Payment Gateway Selector & Form */}
+              {/* Step 4: Real SSLCOMMERZ Payment & COD Selection */}
               {currentStep === 4 && (
                 <motion.div
                   initial={{ opacity: 0, x: -10 }}
@@ -606,689 +671,166 @@ export default function CheckoutPage() {
                 >
                   <div>
                     <h2 className="font-editorial text-2xl uppercase tracking-tight text-[#111111]">
-                      4. Payment Gateway Authentication
+                      4. Payment Method
                     </h2>
                     <p className="text-xs text-[#6B6B6B] mt-1 font-light">
-                      Select your preferred payment channel. All transactions are securely routed through 256-bit encrypted gateways.
+                      Choose your preferred payment method. Online payments are processed through SSLCOMMERZ with official 256-bit bank encryption.
                     </p>
                   </div>
 
-                  {/* Sandbox Mode Active Badge */}
-                  <div className="p-3 bg-white border border-[#D8D5CF] flex flex-wrap items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2 text-[#111111]">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <span className="font-mono text-[11px] uppercase tracking-wider font-semibold">
-                        Multi-Gateway Sandbox Active
-                      </span>
-                    </div>
-                    <span className="text-[11px] text-[#6B6B6B] font-mono">
-                      Safe Test Mode • 1-Click Demo Fill Available
-                    </span>
-                  </div>
-
-                  {/* Gateway Selector Tabs */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-                    {/* 1. Credit / Debit Card */}
-                    <button
-                      type="button"
-                      onClick={() => setPaymentGateway("card")}
-                      className={`p-3 text-left border transition-all flex flex-col justify-between min-h-[92px] ${
-                        paymentGateway === "card"
-                          ? "border-[#111111] bg-white ring-1 ring-[#111111] shadow-xs"
-                          : "border-[#D8D5CF] bg-[#EAE8E2]/50 hover:border-[#111111]"
+                  {/* Payment Method Selector Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Method 1: Online Payment via SSLCOMMERZ */}
+                    <div
+                      onClick={() => setPaymentMethod("online")}
+                      className={`p-5 border cursor-pointer transition-all space-y-3 ${
+                        paymentMethod === "online"
+                          ? "border-[#111111] bg-white ring-1 ring-[#111111] shadow-sm"
+                          : "border-[#D8D5CF] bg-[#EAE8E2]/40 hover:border-[#111111]"
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <div className="w-6 h-6 rounded bg-[#111111] text-[#F5F3EF] flex items-center justify-center">
-                          <CreditCard className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="text-[9px] uppercase font-mono tracking-wider text-[#6B6B6B]">
-                          Cards
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-xs font-semibold uppercase tracking-wider text-[#111111] block">
-                          Card
-                        </span>
-                        <span className="text-[10px] text-[#6B6B6B] block">
-                          Visa / MC / Amex
-                        </span>
-                      </div>
-                    </button>
-
-                    {/* 2. bKash */}
-                    <button
-                      type="button"
-                      onClick={() => setPaymentGateway("bkash")}
-                      className={`p-3 text-left border transition-all flex flex-col justify-between min-h-[92px] ${
-                        paymentGateway === "bkash"
-                          ? "border-[#E2136E] bg-white ring-1 ring-[#E2136E] shadow-xs"
-                          : "border-[#D8D5CF] bg-[#EAE8E2]/50 hover:border-[#E2136E]"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="w-6 h-6 rounded bg-[#E2136E] text-white flex items-center justify-center font-bold text-[10px]">
-                          bK
-                        </div>
-                        <span className="text-[9px] uppercase font-mono tracking-wider text-[#E2136E] font-medium">
-                          BD Favorite
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-xs font-semibold uppercase tracking-wider text-[#111111] block">
-                          bKash
-                        </span>
-                        <span className="text-[10px] text-[#6B6B6B] block">
-                          বিকাশ MFS
-                        </span>
-                      </div>
-                    </button>
-
-                    {/* 3. Nagad */}
-                    <button
-                      type="button"
-                      onClick={() => setPaymentGateway("nagad")}
-                      className={`p-3 text-left border transition-all flex flex-col justify-between min-h-[92px] ${
-                        paymentGateway === "nagad"
-                          ? "border-[#F7941D] bg-white ring-1 ring-[#F7941D] shadow-xs"
-                          : "border-[#D8D5CF] bg-[#EAE8E2]/50 hover:border-[#F7941D]"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="w-6 h-6 rounded bg-[#F7941D] text-white flex items-center justify-center font-bold text-[10px]">
-                          NG
-                        </div>
-                        <span className="text-[9px] uppercase font-mono tracking-wider text-[#F7941D] font-medium">
-                          Postal Pay
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-xs font-semibold uppercase tracking-wider text-[#111111] block">
-                          Nagad
-                        </span>
-                        <span className="text-[10px] text-[#6B6B6B] block">
-                          নগদ Wallet
-                        </span>
-                      </div>
-                    </button>
-
-                    {/* 4. Apple Pay / Google Pay */}
-                    <button
-                      type="button"
-                      onClick={() => setPaymentGateway("applepay")}
-                      className={`p-3 text-left border transition-all flex flex-col justify-between min-h-[92px] ${
-                        paymentGateway === "applepay"
-                          ? "border-[#111111] bg-white ring-1 ring-[#111111] shadow-xs"
-                          : "border-[#D8D5CF] bg-[#EAE8E2]/50 hover:border-[#111111]"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="w-6 h-6 rounded bg-black text-white flex items-center justify-center font-semibold text-[11px]">
-                          
-                        </div>
-                        <span className="text-[9px] uppercase font-mono tracking-wider text-[#6B6B6B]">
-                          1-Click
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-xs font-semibold uppercase tracking-wider text-[#111111] block">
-                          Wallets
-                        </span>
-                        <span className="text-[10px] text-[#6B6B6B] block">
-                          Apple / GPay
-                        </span>
-                      </div>
-                    </button>
-
-                    {/* 5. Cash on Delivery */}
-                    <button
-                      type="button"
-                      onClick={() => setPaymentGateway("cod")}
-                      className={`p-3 text-left border transition-all flex flex-col justify-between min-h-[92px] ${
-                        paymentGateway === "cod"
-                          ? "border-[#111111] bg-white ring-1 ring-[#111111] shadow-xs"
-                          : "border-[#D8D5CF] bg-[#EAE8E2]/50 hover:border-[#111111]"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="w-6 h-6 rounded bg-[#2D4A3E] text-white flex items-center justify-center">
-                          <Truck className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="text-[9px] uppercase font-mono tracking-wider text-[#2D4A3E] font-medium">
-                          Doorstep
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-xs font-semibold uppercase tracking-wider text-[#111111] block">
-                          Cash / COD
-                        </span>
-                        <span className="text-[10px] text-[#6B6B6B] block">
-                          ক্যাশ অন ডেলিভারি
-                        </span>
-                      </div>
-                    </button>
-                  </div>
-
-                  {/* GATEWAY 1: CREDIT / DEBIT CARD */}
-                  {paymentGateway === "card" && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="space-y-4 pt-2"
-                    >
-                      {/* Card Demo Presets */}
-                      <div className="flex flex-wrap items-center gap-2 p-3 bg-white border border-[#D8D5CF]">
-                        <span className="text-[10px] uppercase font-mono text-[#6B6B6B]">
-                          Demo Cards:
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCardBrand("visa");
-                            setCardNumber("4532 8820 9182 8892");
-                            setCardExpiry("12/28");
-                            setCardCvc("742");
-                          }}
-                          className="px-2.5 py-1 bg-[#F5F3EF] hover:bg-[#111111] hover:text-[#F5F3EF] text-[10px] font-mono border border-[#D8D5CF] transition-colors"
-                        >
-                          Visa (• 8892)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCardBrand("mastercard");
-                            setCardNumber("5412 7532 9901 3410");
-                            setCardExpiry("08/27");
-                            setCardCvc("819");
-                          }}
-                          className="px-2.5 py-1 bg-[#F5F3EF] hover:bg-[#111111] hover:text-[#F5F3EF] text-[10px] font-mono border border-[#D8D5CF] transition-colors"
-                        >
-                          Mastercard (• 3410)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCardBrand("amex");
-                            setCardNumber("3782 8224 5900 1004");
-                            setCardExpiry("11/29");
-                            setCardCvc("4421");
-                          }}
-                          className="px-2.5 py-1 bg-[#F5F3EF] hover:bg-[#111111] hover:text-[#F5F3EF] text-[10px] font-mono border border-[#D8D5CF] transition-colors"
-                        >
-                          AMEX (• 1004)
-                        </button>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-[11px] uppercase tracking-widest text-[#6B6B6B] block">
-                          Cardholder Name
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={cardName}
-                          onChange={(e) => setCardName(e.target.value)}
-                          className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#111111]"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-[11px] uppercase tracking-widest text-[#6B6B6B] block">
-                          Card Number
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            required
-                            value={cardNumber}
-                            onChange={(e) => setCardNumber(e.target.value)}
-                            className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#111111]"
-                          />
-                          <div className="absolute right-3.5 top-3 flex items-center gap-1.5">
-                            <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 bg-[#EAE8E2] border border-[#D8D5CF] text-[#111111]">
-                              {cardBrand.toUpperCase()}
-                            </span>
-                            <CreditCard className="w-4 h-4 text-[#6B6B6B]" />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-[11px] uppercase tracking-widest text-[#6B6B6B] block">
-                            Expires (MM/YY)
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={cardExpiry}
-                            onChange={(e) => setCardExpiry(e.target.value)}
-                            className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#111111]"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-[11px] uppercase tracking-widest text-[#6B6B6B] block">
-                            Security Code (CVC)
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={cardCvc}
-                            onChange={(e) => setCardCvc(e.target.value)}
-                            className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#111111]"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="pt-2 flex items-center justify-between text-[11px] text-[#6B6B6B]">
-                        <span className="flex items-center gap-1">
-                          <Lock className="w-3 h-3 text-emerald-600" />
-                          <span>PCI-DSS Level 1 & 3D Secure 2.0 Encrypted</span>
-                        </span>
-                        <span className="font-mono text-[10px]">AUTH-CARD-256</span>
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* GATEWAY 2: BKASH */}
-                  {paymentGateway === "bkash" && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="space-y-4 pt-2"
-                    >
-                      {/* bKash Header Badge */}
-                      <div className="bg-gradient-to-r from-[#E2136E] to-[#B80F58] p-4 text-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="px-1.5 py-0.5 bg-white text-[#E2136E] font-bold text-[10px] rounded">
-                              bKash
-                            </span>
-                            <span className="text-xs font-semibold uppercase tracking-wider">
-                              Direct Payment Gateway
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-white/90">
-                            Merchant: NOIR ATELIER LIMITED (BANGLADESH)
-                          </p>
-                        </div>
-                        <div className="sm:text-right">
-                          <span className="text-[10px] font-mono uppercase tracking-wider block text-white/80">
-                            Total in BDT (৳)
-                          </span>
-                          <span className="text-lg font-bold font-mono">
-                            ৳{grandTotalBdt.toLocaleString()} BDT
-                          </span>
-                          <span className="text-[10px] block text-white/70">
-                            ($1 = ৳120 BDT)
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* bKash Demo Helper */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-white border border-[#D8D5CF]">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setBkashNumber("01712345678");
-                            setBkashOtp("482910");
-                            setBkashPin("•••••");
-                            setBkashOtpNotice("Demo bKash credentials loaded successfully!");
-                          }}
-                          className="px-2.5 py-1 bg-[#E2136E]/10 hover:bg-[#E2136E] text-[#E2136E] hover:text-white text-[10px] font-mono border border-[#E2136E]/30 transition-colors"
-                        >
-                          // 1-Click Demo bKash (01712-345678)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
-                            setBkashOtp(newOtp);
-                            setBkashOtpNotice(`Generated new bKash OTP code: ${newOtp}`);
-                          }}
-                          className="text-[10px] font-mono text-[#6B6B6B] hover:text-[#111111] flex items-center gap-1 underline"
-                        >
-                          <RefreshCw className="w-3 h-3" />
-                          <span>Get New OTP</span>
-                        </button>
-                      </div>
-
-                      {bkashOtpNotice && (
-                        <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
-                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
-                          <span>{bkashOtpNotice}</span>
-                        </div>
-                      )}
-
-                      <div className="space-y-2">
-                        <label className="text-[11px] uppercase tracking-widest text-[#6B6B6B] block">
-                          Your bKash Account Number
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={bkashNumber}
-                          onChange={(e) => setBkashNumber(e.target.value)}
-                          placeholder="e.g. 017XXXXXXXX"
-                          className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#E2136E]"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-[11px] uppercase tracking-widest text-[#6B6B6B] block">
-                            bKash OTP (6 Digits)
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={bkashOtp}
-                            onChange={(e) => setBkashOtp(e.target.value)}
-                            placeholder="6-digit verification code"
-                            className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs font-mono text-[#111111] focus:outline-none focus:border-[#E2136E]"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-[11px] uppercase tracking-widest text-[#6B6B6B] block">
-                            bKash PIN (5 Digits)
-                          </label>
-                          <input
-                            type="password"
-                            required
-                            value={bkashPin}
-                            onChange={(e) => setBkashPin(e.target.value)}
-                            placeholder="5-digit secret PIN"
-                            className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#E2136E]"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="p-3 bg-[#F5F3EF] border border-[#D8D5CF] text-[11px] text-[#6B6B6B] space-y-1">
-                        <span className="font-semibold text-[#111111] block">bKash Authorization Terms:</span>
-                        <p>
-                          By confirming, you authorize bKash MFS to debit ৳{grandTotalBdt.toLocaleString()} BDT directly to NOIR ATELIER. Safe sandbox verification ensures test orders complete instantly.
-                        </p>
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* GATEWAY 3: NAGAD */}
-                  {paymentGateway === "nagad" && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="space-y-4 pt-2"
-                    >
-                      {/* Nagad Header Badge */}
-                      <div className="bg-gradient-to-r from-[#F7941D] to-[#E65100] p-4 text-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="px-1.5 py-0.5 bg-white text-[#F7941D] font-bold text-[10px] rounded">
-                              Nagad
-                            </span>
-                            <span className="text-xs font-semibold uppercase tracking-wider">
-                              Postal Digital Financial Gateway
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-white/90">
-                            Merchant: NOIR ATELIER POSTAL COMMERCE
-                          </p>
-                        </div>
-                        <div className="sm:text-right">
-                          <span className="text-[10px] font-mono uppercase tracking-wider block text-white/80">
-                            Total Payable (BDT)
-                          </span>
-                          <span className="text-lg font-bold font-mono">
-                            ৳{grandTotalBdt.toLocaleString()} BDT
-                          </span>
-                          <span className="text-[10px] block text-white/70">
-                            ($1 = ৳120 BDT)
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Nagad Demo Helper */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-white border border-[#D8D5CF]">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setNagadNumber("01987654321");
-                            setNagadOtp("783921");
-                            setNagadPin("••••");
-                            setNagadOtpNotice("Demo Nagad credentials loaded successfully!");
-                          }}
-                          className="px-2.5 py-1 bg-[#F7941D]/10 hover:bg-[#F7941D] text-[#D97706] hover:text-white text-[10px] font-mono border border-[#F7941D]/30 transition-colors"
-                        >
-                          // 1-Click Demo Nagad (01987-654321)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
-                            setNagadOtp(newOtp);
-                            setNagadOtpNotice(`Generated new Nagad OTP code: ${newOtp}`);
-                          }}
-                          className="text-[10px] font-mono text-[#6B6B6B] hover:text-[#111111] flex items-center gap-1 underline"
-                        >
-                          <RefreshCw className="w-3 h-3" />
-                          <span>Get New OTP</span>
-                        </button>
-                      </div>
-
-                      {nagadOtpNotice && (
-                        <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
-                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
-                          <span>{nagadOtpNotice}</span>
-                        </div>
-                      )}
-
-                      <div className="space-y-2">
-                        <label className="text-[11px] uppercase tracking-widest text-[#6B6B6B] block">
-                          Nagad Account / Mobile Number
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={nagadNumber}
-                          onChange={(e) => setNagadNumber(e.target.value)}
-                          placeholder="e.g. 019XXXXXXXX"
-                          className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#F7941D]"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-[11px] uppercase tracking-widest text-[#6B6B6B] block">
-                            Nagad OTP (6 Digits)
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={nagadOtp}
-                            onChange={(e) => setNagadOtp(e.target.value)}
-                            placeholder="6-digit OTP"
-                            className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs font-mono text-[#111111] focus:outline-none focus:border-[#F7941D]"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-[11px] uppercase tracking-widest text-[#6B6B6B] block">
-                            Nagad PIN (4 Digits)
-                          </label>
-                          <input
-                            type="password"
-                            required
-                            value={nagadPin}
-                            onChange={(e) => setNagadPin(e.target.value)}
-                            placeholder="4-digit PIN"
-                            className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#F7941D]"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="p-3 bg-[#F5F3EF] border border-[#D8D5CF] text-[11px] text-[#6B6B6B]">
-                        <span>Approved by Bangladesh Postal Department. Instant electronic token payment clearance.</span>
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* GATEWAY 4: APPLE PAY / GOOGLE PAY */}
-                  {paymentGateway === "applepay" && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="space-y-4 pt-2"
-                    >
-                      {/* Wallet Toggle */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setWalletType("apple")}
-                          className={`p-3 border text-center transition-all ${
-                            walletType === "apple"
-                              ? "bg-black text-white border-black"
-                              : "bg-white text-[#111111] border-[#D8D5CF]"
-                          }`}
-                        >
-                          <span className="font-semibold text-xs tracking-wider"> Apple Pay</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setWalletType("google")}
-                          className={`p-3 border text-center transition-all ${
-                            walletType === "google"
-                              ? "bg-black text-white border-black"
-                              : "bg-white text-[#111111] border-[#D8D5CF]"
-                          }`}
-                        >
-                          <span className="font-semibold text-xs tracking-wider">GPay Google Pay</span>
-                        </button>
-                      </div>
-
-                      {/* Biometric Simulation Box */}
-                      <div className="p-6 bg-white border border-[#D8D5CF] text-center space-y-4">
-                        <div className="w-14 h-14 rounded-full bg-[#111111] text-[#F5F3EF] flex items-center justify-center mx-auto shadow-md">
-                          {biometricStatus === "scanning" ? (
-                            <RefreshCw className="w-6 h-6 animate-spin text-emerald-400" />
-                          ) : (
-                            <Smartphone className="w-6 h-6" />
-                          )}
-                        </div>
-
-                        <div>
-                          <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-[#6B6B6B] block mb-1">
-                            {walletType === "apple" ? "APPLE SECURE ENCLAVE" : "GOOGLE WALLET TOKEN"}
-                          </span>
-                          <h4 className="text-sm font-semibold uppercase tracking-wider text-[#111111]">
-                            {biometricStatus === "verified"
-                              ? "Biometric Identity Authenticated"
-                              : biometricStatus === "scanning"
-                              ? "Reading Touch ID / Face ID..."
-                              : "Biometric Authentication Ready"}
-                          </h4>
-                          <p className="text-[11px] text-[#6B6B6B] mt-1 max-w-sm mx-auto">
-                            One-touch authorization with zero card details exposed to merchants.
-                          </p>
-                        </div>
-
-                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-800 text-[10px] font-mono uppercase tracking-wider rounded-full border border-emerald-200">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>Tokenized & Verified: {formatPrice(grandTotal)}</span>
-                        </div>
-
-                        <div className="pt-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setBiometricStatus("scanning");
-                              setTimeout(() => setBiometricStatus("verified"), 800);
-                            }}
-                            className="text-xs uppercase font-mono tracking-wider text-[#111111] underline hover:text-[#6B6B6B]"
-                          >
-                            // Simulate Face ID / Fingerprint Scan
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* GATEWAY 5: CASH ON DELIVERY (COD) */}
-                  {paymentGateway === "cod" && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="space-y-4 pt-2"
-                    >
-                      <div className="p-6 bg-white border border-[#D8D5CF] space-y-4">
-                        <div className="flex items-start gap-4">
-                          <div className="w-12 h-12 bg-[#2D4A3E] text-white flex items-center justify-center shrink-0">
-                            <Truck className="w-6 h-6" />
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-[#111111] text-[#F5F3EF] flex items-center justify-center">
+                            <CreditCard className="w-4 h-4 stroke-[1.75]" />
                           </div>
                           <div>
-                            <span className="text-[10px] font-mono uppercase tracking-widest text-[#2D4A3E] font-semibold block mb-0.5">
-                              DOORSTEP COLLECTION // ক্যাশ অন ডেলিভারি
+                            <span className="text-xs font-bold uppercase tracking-wider text-[#111111] block">
+                              Online Payment
                             </span>
-                            <h4 className="text-sm font-semibold uppercase tracking-wider text-[#111111]">
-                              Pay When Your Garments Arrive
-                            </h4>
-                            <p className="text-xs text-[#6B6B6B] mt-1 font-light leading-relaxed">
-                              Zero upfront electronic deduction. You may inspect the luxury packaging upon courier arrival and hand over payment or scan the rider&apos;s portable POS device.
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#D8D5CF]/60">
-                          <div className="p-3 bg-[#F5F3EF] border border-[#D8D5CF] text-xs">
-                            <span className="font-semibold text-[#111111] block mb-1">
-                              Payment Options on Arrival:
-                            </span>
-                            <ul className="text-[11px] text-[#6B6B6B] space-y-0.5">
-                              <li>• Cash in BDT or USD</li>
-                              <li>• Scan rider&apos;s bKash / Nagad QR code</li>
-                              <li>• Portable wireless credit card terminal</li>
-                            </ul>
-                          </div>
-
-                          <div className="p-3 bg-[#F5F3EF] border border-[#D8D5CF] text-xs">
-                            <span className="font-semibold text-[#111111] block mb-1">
-                              Amount Due at Doorstep:
-                            </span>
-                            <span className="text-sm font-mono font-bold text-[#111111] block">
-                              {formatPrice(grandTotal)}
-                            </span>
-                            <span className="text-[10px] text-[#6B6B6B] block">
-                              (Approx. ৳{grandTotalBdt.toLocaleString()} BDT @ 1 USD = ৳120)
+                            <span className="text-[10px] text-emerald-700 font-medium">
+                              SSLCOMMERZ Gateway
                             </span>
                           </div>
                         </div>
+                        <input
+                          type="radio"
+                          name="paymentMethod"
+                          checked={paymentMethod === "online"}
+                          onChange={() => setPaymentMethod("online")}
+                        />
+                      </div>
 
-                        <div className="space-y-2 pt-2">
-                          <label className="text-[11px] uppercase tracking-widest text-[#6B6B6B] block">
-                            Recipient Contact Phone (For Courier Dispatch Call)
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={codPhone}
-                            onChange={(e) => setCodPhone(e.target.value)}
-                            placeholder="+880 1712-345678"
-                            className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#111111]"
-                          />
+                      <p className="text-[11px] text-[#6B6B6B] leading-relaxed">
+                        Cards (Visa, MasterCard, Amex), bKash, Nagad, Rocket, Upay, and 30+ Net Banking channels.
+                      </p>
+
+                      <div className="pt-2 border-t border-[#D8D5CF]/60 flex items-center justify-between text-[11px] font-mono">
+                        <span className="text-[#6B6B6B]">Convertible Total:</span>
+                        <span className="font-semibold text-[#111111]">
+                          ৳{grandTotalBdt.toLocaleString()} BDT
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Method 2: Cash on Delivery */}
+                    <div
+                      onClick={() => setPaymentMethod("cod")}
+                      className={`p-5 border cursor-pointer transition-all space-y-3 ${
+                        paymentMethod === "cod"
+                          ? "border-[#111111] bg-white ring-1 ring-[#111111] shadow-sm"
+                          : "border-[#D8D5CF] bg-[#EAE8E2]/40 hover:border-[#111111]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-[#2D4A3E] text-white flex items-center justify-center">
+                            <Truck className="w-4 h-4 stroke-[1.75]" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold uppercase tracking-wider text-[#111111] block">
+                              Cash on Delivery
+                            </span>
+                            <span className="text-[10px] text-[#6B6B6B]">
+                              Doorstep Settlement
+                            </span>
+                          </div>
                         </div>
+                        <input
+                          type="radio"
+                          name="paymentMethod"
+                          checked={paymentMethod === "cod"}
+                          onChange={() => setPaymentMethod("cod")}
+                        />
+                      </div>
 
-                        <div className="space-y-2">
-                          <label className="text-[11px] uppercase tracking-widest text-[#6B6B6B] block">
-                            Special Courier Delivery Note (Optional)
-                          </label>
-                          <input
-                            type="text"
-                            value={codInstructions}
-                            onChange={(e) => setCodInstructions(e.target.value)}
-                            placeholder="e.g. Call before coming, leave at reception"
-                            className="w-full bg-white border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#111111]"
-                          />
+                      <p className="text-[11px] text-[#6B6B6B] leading-relaxed">
+                        Inspect garments at delivery and settle payment directly in cash with the courier rider.
+                      </p>
+
+                      <div className="pt-2 border-t border-[#D8D5CF]/60 flex items-center justify-between text-[11px] font-mono">
+                        <span className="text-[#6B6B6B]">Pay at Doorstep:</span>
+                        <span className="font-semibold text-[#111111]">
+                          {formatPrice(grandTotal)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Details Panes based on selection */}
+                  {paymentMethod === "online" ? (
+                    <div className="p-5 bg-white border border-[#D8D5CF] space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] uppercase font-mono tracking-widest text-[#6B6B6B]">
+                          Accepted Payment Channels
+                        </span>
+                        <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 border border-emerald-200">
+                          Instant Authorization
+                        </span>
+                      </div>
+
+                      {/* Brand Badges */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                        <div className="p-2.5 bg-[#F5F3EF] border border-[#D8D5CF] text-center">
+                          <span className="text-xs font-semibold text-[#111111] block">Cards</span>
+                          <span className="text-[9px] text-[#6B6B6B] block">Visa / Master / Amex</span>
+                        </div>
+                        <div className="p-2.5 bg-[#F5F3EF] border border-[#D8D5CF] text-center">
+                          <span className="text-xs font-semibold text-[#E2136E] block">bKash</span>
+                          <span className="text-[9px] text-[#6B6B6B] block">Instant Checkout</span>
+                        </div>
+                        <div className="p-2.5 bg-[#F5F3EF] border border-[#D8D5CF] text-center">
+                          <span className="text-xs font-semibold text-[#F7941D] block">Nagad</span>
+                          <span className="text-[9px] text-[#6B6B6B] block">Digital Wallet</span>
+                        </div>
+                        <div className="p-2.5 bg-[#F5F3EF] border border-[#D8D5CF] text-center">
+                          <span className="text-xs font-semibold text-[#111111] block">Net Banking</span>
+                          <span className="text-[9px] text-[#6B6B6B] block">30+ Local Banks</span>
                         </div>
                       </div>
-                    </motion.div>
+
+                      <div className="p-3 bg-[#F5F3EF] border border-[#D8D5CF] flex items-start gap-2.5 text-xs text-[#6B6B6B]">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <p className="text-[11px] leading-relaxed">
+                          Clicking <strong className="text-[#111111]">"Proceed to Secure Payment"</strong> will safely redirect you to SSLCOMMERZ where you can choose your card, bKash, or bank to finish payment. Your sensitive details are never handled by or stored on our servers.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-5 bg-white border border-[#D8D5CF] space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-[11px] uppercase tracking-widest text-[#6B6B6B] block">
+                          Courier Delivery Instructions (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={codInstructions}
+                          onChange={(e) => setCodInstructions(e.target.value)}
+                          placeholder="e.g. Call 30 mins before arrival, deliver after 3 PM"
+                          className="w-full bg-[#F5F3EF] border border-[#D8D5CF] px-4 py-3 text-xs text-[#111111] focus:outline-none focus:border-[#111111]"
+                        />
+                      </div>
+                      <p className="text-[11px] text-[#6B6B6B]">
+                        Please ensure the exact cash amount of <strong className="text-[#111111] font-mono">{formatPrice(grandTotal)} (৳{grandTotalBdt.toLocaleString()} BDT)</strong> is ready at your doorstep.
+                      </p>
+                    </div>
+                  )}
+
+                  {checkoutError && (
+                    <div className="p-4 bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                      <p>{checkoutError}</p>
+                    </div>
                   )}
                 </motion.div>
               )}
@@ -1298,8 +840,9 @@ export default function CheckoutPage() {
                 {currentStep > 1 && (
                   <button
                     type="button"
+                    disabled={isProcessing}
                     onClick={() => setCurrentStep((prev) => (prev - 1) as CheckoutStep)}
-                    className="text-xs uppercase tracking-widest text-[#6B6B6B] hover:text-[#111111] transition-colors"
+                    className="text-xs uppercase tracking-widest text-[#6B6B6B] hover:text-[#111111] transition-colors disabled:opacity-50"
                   >
                     Back to previous step
                   </button>
@@ -1308,24 +851,30 @@ export default function CheckoutPage() {
 
                 <button
                   type="submit"
-                  className="px-8 py-3.5 bg-[#111111] text-[#F5F3EF] text-xs uppercase tracking-widest font-medium hover:bg-black transition-colors flex items-center gap-2 shadow-sm"
+                  disabled={isProcessing}
+                  className="px-8 py-3.5 bg-[#111111] text-[#F5F3EF] text-xs uppercase tracking-widest font-medium hover:bg-black transition-colors flex items-center gap-2 shadow-sm disabled:opacity-60"
                 >
-                  <span>
-                    {currentStep === 4 ? (
-                      paymentGateway === "card"
-                        ? `Authorise Card Payment ${formatPrice(grandTotal)}`
-                        : paymentGateway === "bkash"
-                        ? `Confirm bKash Payment ৳${grandTotalBdt.toLocaleString()} BDT`
-                        : paymentGateway === "nagad"
-                        ? `Confirm Nagad Payment ৳${grandTotalBdt.toLocaleString()} BDT`
-                        : paymentGateway === "applepay"
-                        ? `Complete with ${walletType === "apple" ? "Pay" : "GPay"} ${formatPrice(grandTotal)}`
-                        : `Confirm Cash on Delivery (${formatPrice(grandTotal)})`
-                    ) : (
-                      "Continue Step"
-                    )}
-                  </span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  {isProcessing ? (
+                    <>
+                      <RotateCcw className="w-3.5 h-3.5 animate-spin" />
+                      <span>
+                        {paymentMethod === "online"
+                          ? "Connecting to SSLCOMMERZ..."
+                          : "Placing Atelier Order..."}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span>
+                        {currentStep === 4
+                          ? paymentMethod === "online"
+                            ? `Proceed to Secure Payment (৳${grandTotalBdt.toLocaleString()} BDT)`
+                            : `Confirm Atelier Order (${formatPrice(grandTotal)})`
+                          : "Continue Step"}
+                      </span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -1372,12 +921,21 @@ export default function CheckoutPage() {
                   <span>{shippingCost === 0 ? "Complimentary" : formatPrice(shippingCost)}</span>
                 </div>
                 <div className="flex justify-between">
+                  <span>BDT Conversion Rate</span>
+                  <span className="font-mono text-[#111111]">1 USD = ৳120 BDT</span>
+                </div>
+                <div className="flex justify-between">
                   <span>Taxes & Duties</span>
                   <span>Included</span>
                 </div>
                 <div className="pt-2 border-t border-[#D8D5CF] flex justify-between text-base font-semibold text-[#111111]">
                   <span>Total Due</span>
-                  <span className="text-xl font-light">{formatPrice(grandTotal)}</span>
+                  <div className="text-right">
+                    <span className="text-xl font-light block">{formatPrice(grandTotal)}</span>
+                    <span className="text-[10px] text-[#6B6B6B] font-mono block">
+                      approx. ৳{grandTotalBdt.toLocaleString()} BDT
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
