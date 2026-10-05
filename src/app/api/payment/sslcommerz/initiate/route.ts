@@ -197,10 +197,22 @@ export async function POST(request: NextRequest) {
       savedOrder = await OrderModel.create(orderRecord);
     } catch (dbErr: any) {
       console.error("[Order] Failed to create pending order in MongoDB:", dbErr);
+      const isAtlasIpError =
+        dbErr?.message?.includes("timed out") ||
+        dbErr?.message?.includes("buffering") ||
+        dbErr?.message?.includes("ECONNREFUSED") ||
+        dbErr?.name === "MongoServerSelectionError";
+
+      const hint = !process.env.MONGODB_URI
+        ? "Database connection failed: MONGODB_URI is not configured in Vercel Environment Variables. Please add MONGODB_URI in Vercel settings and redeploy."
+        : isAtlasIpError
+        ? "Could not reach MongoDB Atlas cluster. Please ensure '0.0.0.0/0' (Allow access from anywhere) is enabled in your MongoDB Atlas Network Access settings."
+        : `Could not create atelier order record: ${dbErr?.message || "Database error"}. Please try again.`;
+
       return NextResponse.json(
         {
           success: false,
-          error: "Could not create atelier order record. Please try again.",
+          error: hint,
         },
         { status: 500 }
       );
