@@ -27,6 +27,9 @@ const CreateOrderSchema = z.object({
         size: z.string().min(1),
         color: z.string().min(1),
         quantity: z.number().int().positive(),
+        name: z.string().optional(),
+        price: z.number().optional(),
+        image: z.string().optional(),
       })
     )
     .min(1, "Order must contain at least one item"),
@@ -132,15 +135,33 @@ export async function POST(request: NextRequest) {
     let serverSubtotal = 0;
 
     for (const item of items) {
-      const product = findProduct(item.productId);
+      let product = findProduct(item.productId);
+
+      // Auto-recover custom silhouettes created by admin (e.g. noir-batch-16-8858)
       if (!product) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Product "${item.productId}" not found.`,
-          },
-          { status: 404 }
-        );
+        const fallbackPrice = typeof item.price === "number" && item.price > 0 ? item.price : 180;
+        const fallbackName = item.name || item.productId.replace(/^noir-/, "").replace(/-\d+$/, "").replace(/-/g, " ").toUpperCase();
+
+        product = {
+          id: item.productId,
+          slug: item.productId.replace(/^noir-/, "").replace(/-\d+$/, ""),
+          name: fallbackName,
+          price: fallbackPrice,
+          inStock: true,
+          stockCount: 50,
+          images: item.image ? [item.image] : [],
+        } as any;
+
+        // Auto-persist to MongoDB Atlas
+        try {
+          await ProductModel.findOneAndUpdate(
+            { $or: [{ id: item.productId }, { slug: product.slug }] },
+            { $set: product },
+            { upsert: true, new: true }
+          );
+        } catch (saveErr) {
+          console.warn("[Catalog] Could not auto-upsert custom cart product in orders:", saveErr);
+        }
       }
 
       const itemPrice = Number(product.price);

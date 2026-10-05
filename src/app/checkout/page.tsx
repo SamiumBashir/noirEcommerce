@@ -124,10 +124,13 @@ export default function CheckoutPage() {
             deliveryMethod,
             userId: user?.id,
             items: cart.map((item) => ({
-              productId: item.productId || item.product.id || item.product.slug,
+              productId: item.productId || item.product?.id || item.product?.slug,
               size: item.size,
               color: item.color,
               quantity: item.quantity,
+              name: item.product?.name || "Noir Garment",
+              price: item.product?.price,
+              image: item.product?.images?.[0] || "",
             })),
           };
 
@@ -168,10 +171,13 @@ export default function CheckoutPage() {
             paymentMethod: "COD",
             userId: user?.id,
             items: cart.map((item) => ({
-              productId: item.productId || item.product.id || item.product.slug,
+              productId: item.productId || item.product?.id || item.product?.slug,
               size: item.size,
               color: item.color,
               quantity: item.quantity,
+              name: item.product?.name || "Noir Garment",
+              price: item.product?.price,
+              image: item.product?.images?.[0] || "",
             })),
           };
 
