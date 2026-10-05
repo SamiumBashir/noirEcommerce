@@ -52,6 +52,9 @@ export interface SslcommerzValidationResult {
  * Resolves the public site base URL for local development and Vercel production
  */
 export function getSiteBaseUrl(): string {
+  if (process.env.SITE_URL) {
+    return process.env.SITE_URL.replace(/\/$/, "");
+  }
   if (process.env.NEXT_PUBLIC_SITE_URL) {
     return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
   }
