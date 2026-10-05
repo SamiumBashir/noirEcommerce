@@ -27,16 +27,83 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
+const DEFAULT_IMAGE =
+  "https://images.unsplash.com/photo-1544022613-e87ca75a784a?q=80&w=1200&auto=format&fit=crop";
+
+function normalizeProduct(p: any): Product {
+  const images =
+    Array.isArray(p.images) && p.images.length > 0 && p.images[0]
+      ? p.images
+      : [DEFAULT_IMAGE];
+  const colors =
+    Array.isArray(p.colors) && p.colors.length > 0
+      ? p.colors
+      : [{ name: "Noir Black", hex: "#111111", image: images[0] }];
+  const sizes =
+    Array.isArray(p.sizes) && p.sizes.length > 0 ? p.sizes : ["S", "M", "L", "XL"];
+  const details =
+    Array.isArray(p.details) && p.details.length > 0
+      ? p.details
+      : [
+          "Architectural silhouette with tailored ergonomic seams",
+          "Heavyweight premium textile blend",
+          "Hand-finished atelier accents",
+        ];
+
+  return {
+    ...p,
+    id: p.id || p.slug || "atelier-garment",
+    name: p.name || "Noir Atelier Garment",
+    subtitle: p.subtitle || "Archival collection edition.",
+    category: (p.category || "MEN") as any,
+    gender: (p.gender || "Unisex") as any,
+    price: typeof p.price === "number" ? p.price : 180,
+    rating: typeof p.rating === "number" ? p.rating : 5,
+    reviewCount: typeof p.reviewCount === "number" ? p.reviewCount : 0,
+    inStock: p.inStock !== false,
+    stockCount: typeof p.stockCount === "number" ? p.stockCount : 50,
+    images,
+    colors,
+    sizes,
+    description:
+      p.description ||
+      "Archival tailored garment with sculptural proportions, engineered for movement and luxury comfort.",
+    details,
+    shippingInfo: p.shippingInfo || "Complimentary worldwide express shipping.",
+    careInstructions: p.careInstructions || "Specialist atelier dry clean only.",
+  };
+}
+
 export default function ProductDetailPage({ params }: PageProps) {
   const resolvedParams = use(params);
   const router = useRouter();
 
+  const matchProduct = (p: Product, targetSlug: string) => {
+    if (!p || !targetSlug) return false;
+    const cleanTarget = targetSlug.trim().toLowerCase();
+    const baseTarget = cleanTarget.replace(/^noir-/, "").replace(/-\d+$/, "");
+    const pid = (p.id || "").toLowerCase();
+    const pslug = (p.slug || "").toLowerCase();
+    const pname = (p.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+    return (
+      pid === cleanTarget ||
+      pslug === cleanTarget ||
+      pslug === baseTarget ||
+      pid.includes(baseTarget) ||
+      pslug.includes(baseTarget) ||
+      pname === baseTarget ||
+      pname.includes(baseTarget)
+    );
+  };
+
   const [product, setProduct] = useState<Product | undefined>(() => {
-    const base = PRODUCTS.find((p) => p.slug === resolvedParams.slug || p.id === resolvedParams.slug);
-    if (base) return base;
+    const base = PRODUCTS.find((p) => matchProduct(p, resolvedParams.slug));
+    if (base) return normalizeProduct(base);
     if (typeof window !== "undefined") {
       const custom = getCustomProductsFromStorage();
-      return custom.find((p) => p.slug === resolvedParams.slug || p.id === resolvedParams.slug);
+      const local = custom.find((p) => matchProduct(p, resolvedParams.slug));
+      if (local) return normalizeProduct(local);
     }
     return undefined;
   });
@@ -45,9 +112,9 @@ export default function ProductDetailPage({ params }: PageProps) {
   useEffect(() => {
     if (!product && typeof window !== "undefined") {
       const custom = getCustomProductsFromStorage();
-      const local = custom.find((p) => p.slug === resolvedParams.slug || p.id === resolvedParams.slug);
+      const local = custom.find((p) => matchProduct(p, resolvedParams.slug));
       if (local) {
-        setProduct(local);
+        setProduct(normalizeProduct(local));
         setIsLoading(false);
       }
     }
@@ -56,7 +123,7 @@ export default function ProductDetailPage({ params }: PageProps) {
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.data) {
-          setProduct(data.data);
+          setProduct(normalizeProduct(data.data));
         }
       })
       .catch(() => {})
@@ -67,7 +134,7 @@ export default function ProductDetailPage({ params }: PageProps) {
   const { toggleWishlist, isInWishlist } = useWishlist();
 
   const [selectedColor, setSelectedColor] = useState(
-    product?.colors?.[0] || { name: "Default", hex: "#111111", image: product?.images?.[0] || "" }
+    product?.colors?.[0] || { name: "Noir Black", hex: "#111111", image: product?.images?.[0] || DEFAULT_IMAGE }
   );
   const [selectedSize, setSelectedSize] = useState(product?.sizes?.[0] || "M");
   const [quantity, setQuantity] = useState(1);
@@ -107,19 +174,21 @@ export default function ProductDetailPage({ params }: PageProps) {
 
   // Filter related products
   const relatedProducts = PRODUCTS.filter(
-    (p) => p.id !== product.id && (p.category === product.category || p.gender === product.gender)
+    (p) => p.id !== product.id && ((product.category && p.category === product.category) || p.gender === product.gender)
   ).slice(0, 4);
 
   const handleColorChange = (color: typeof product.colors[0]) => {
     setSelectedColor(color);
-    const imgIndex = product.images.findIndex((img) => img === color.image);
+    const imgIndex = (product.images || []).findIndex((img) => img === color.image);
     if (imgIndex >= 0) {
       setActiveImageIndex(imgIndex);
     }
   };
 
   const handleAddToCart = () => {
-    const success = addToCart(product, selectedColor.name, selectedSize, quantity);
+    const colorName = selectedColor?.name || "Standard";
+    const sizeName = selectedSize || "M";
+    const success = addToCart(product, colorName, sizeName, quantity);
     if (success) {
       setIsAdded(true);
       setTimeout(() => setIsAdded(false), 2000);
@@ -127,7 +196,9 @@ export default function ProductDetailPage({ params }: PageProps) {
   };
 
   const handleBuyNow = () => {
-    const success = addToCart(product, selectedColor.name, selectedSize, quantity);
+    const colorName = selectedColor?.name || "Standard";
+    const sizeName = selectedSize || "M";
+    const success = addToCart(product, colorName, sizeName, quantity);
     if (success) {
       router.push("/checkout");
     }
@@ -146,8 +217,11 @@ export default function ProductDetailPage({ params }: PageProps) {
             Shop
           </Link>
           <span>/</span>
-          <Link href={`/shop?category=${product.category.toLowerCase()}`} className="hover:text-[#111111] transition-colors">
-            {product.category}
+          <Link
+            href={`/shop?category=${(product.category || "men").toLowerCase()}`}
+            className="hover:text-[#111111] transition-colors"
+          >
+            {product.category || "Atelier"}
           </Link>
           <span>/</span>
           <span className="text-[#111111] font-medium truncate max-w-[200px]">
@@ -171,7 +245,11 @@ export default function ProductDetailPage({ params }: PageProps) {
                   className="relative w-full h-full"
                 >
                   <Image
-                    src={product.images[activeImageIndex] || product.images[0]}
+                    src={
+                      (product.images && product.images[activeImageIndex]) ||
+                      (product.images && product.images[0]) ||
+                      DEFAULT_IMAGE
+                    }
                     alt={`${product.name} view ${activeImageIndex + 1}`}
                     fill
                     priority
@@ -198,7 +276,7 @@ export default function ProductDetailPage({ params }: PageProps) {
             </div>
 
             {/* Thumbnail Row */}
-            {product.images.length > 1 && (
+            {product.images && product.images.length > 1 && (
               <div className="grid grid-cols-4 gap-4">
                 {product.images.map((img, idx) => (
                   <button
@@ -228,7 +306,7 @@ export default function ProductDetailPage({ params }: PageProps) {
             {/* Header / Category / Name / Price */}
             <div className="border-b border-[#D8D5CF] pb-6">
               <span className="text-[11px] uppercase tracking-[0.25em] text-[#6B6B6B] block mb-2">
-                {product.category} // ATELIER
+                {product.category || "ATELIER"} // ATELIER
               </span>
               <h1 className="font-editorial text-4xl sm:text-5xl font-normal text-[#111111] uppercase tracking-tight">
                 {product.name}
@@ -257,16 +335,16 @@ export default function ProductDetailPage({ params }: PageProps) {
             {/* Color Swatches */}
             <div className="space-y-3">
               <div className="flex justify-between text-xs uppercase tracking-widest text-[#111111] font-medium">
-                <span>Color: {selectedColor.name}</span>
-                <span className="text-[#6B6B6B]">{product.colors.length} Available</span>
+                <span>Color: {selectedColor?.name || "Noir Black"}</span>
+                <span className="text-[#6B6B6B]">{product.colors?.length || 1} Available</span>
               </div>
               <div className="flex gap-3">
-                {product.colors.map((color) => (
+                {(product.colors || []).map((color) => (
                   <button
                     key={color.name}
                     onClick={() => handleColorChange(color)}
                     className={`flex items-center gap-2 px-3.5 py-2 border text-xs tracking-wider transition-all ${
-                      selectedColor.name === color.name
+                      selectedColor?.name === color.name
                         ? "border-[#111111] bg-[#111111] text-[#F5F3EF]"
                         : "border-[#D8D5CF] text-[#111111] hover:border-[#111111]"
                     }`}
@@ -293,7 +371,7 @@ export default function ProductDetailPage({ params }: PageProps) {
                 </button>
               </div>
               <div className="grid grid-cols-5 gap-2">
-                {product.sizes.map((size) => (
+                {(product.sizes || []).map((size) => (
                   <button
                     key={size}
                     onClick={() => setSelectedSize(size)}
@@ -325,7 +403,7 @@ export default function ProductDetailPage({ params }: PageProps) {
                   {quantity}
                 </span>
                 <button
-                  onClick={() => setQuantity((q) => Math.min(product.stockCount, q + 1))}
+                  onClick={() => setQuantity((q) => Math.min(product.stockCount || 50, q + 1))}
                   className="w-9 h-9 flex items-center justify-center text-[#111111] hover:bg-black/5"
                 >
                   +
@@ -375,7 +453,7 @@ export default function ProductDetailPage({ params }: PageProps) {
                 </button>
                 {detailsOpen && (
                   <ul className="mt-3 space-y-2 text-xs text-[#6B6B6B] list-disc list-inside">
-                    {product.details.map((detail, idx) => (
+                    {(product.details || []).map((detail, idx) => (
                       <li key={idx} className="leading-relaxed font-light">
                         {detail}
                       </li>

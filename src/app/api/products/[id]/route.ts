@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
-import { PRODUCTS, getLiveProducts, saveLiveProduct, deleteLiveProduct } from "@/lib/data/products";
+import { PRODUCTS, Product, getLiveProducts, saveLiveProduct, deleteLiveProduct } from "@/lib/data/products";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { ProductModel } from "@/lib/db/models/Product";
 import {
@@ -19,20 +19,69 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     // 1. Check MongoDB if connected
     const conn = await connectToDatabase();
+    const cleanId = id.trim().toLowerCase();
+    const baseSlug = cleanId.replace(/^noir-/, "").replace(/-\d+$/, "");
+
     if (conn) {
       try {
-        const orConditions: any[] = [{ slug: id }, { id: id }];
+        const orConditions: any[] = [
+          { slug: id },
+          { id: id },
+          { slug: cleanId },
+          { id: cleanId },
+          { slug: baseSlug },
+          { id: `noir-${baseSlug}` },
+        ];
         if (mongoose.Types.ObjectId.isValid(id)) {
           orConditions.push({ _id: id });
         }
-        const dbProduct = await ProductModel.findOne({
-          $or: orConditions,
-        }).lean();
+        let dbProduct = await ProductModel.findOne({ $or: orConditions }).lean();
+
+        // Fallback: partial match on slug, id prefix, or name
+        if (!dbProduct) {
+          dbProduct = await ProductModel.findOne({
+            $or: [
+              { slug: new RegExp(`^${baseSlug}$`, "i") },
+              { id: new RegExp(`^noir-${baseSlug}`, "i") },
+              { name: new RegExp(`^${baseSlug.replace(/-/g, " ")}$`, "i") },
+            ],
+          }).lean();
+        }
+
         if (dbProduct) {
+          const raw = dbProduct as any;
+          const defaultImage = "https://images.unsplash.com/photo-1544022613-e87ca75a784a?q=80&w=1200&auto=format&fit=crop";
+          const images = (Array.isArray(raw.images) && raw.images.length > 0 && raw.images[0])
+            ? raw.images
+            : [defaultImage];
+          const colors = (Array.isArray(raw.colors) && raw.colors.length > 0)
+            ? raw.colors
+            : [{ name: "Noir Black", hex: "#111111", image: images[0] }];
+          const sizes = (Array.isArray(raw.sizes) && raw.sizes.length > 0)
+            ? raw.sizes
+            : ["S", "M", "L", "XL"];
+          const details = (Array.isArray(raw.details) && raw.details.length > 0)
+            ? raw.details
+            : [
+                "Architectural silhouette with tailored ergonomic seams",
+                "Heavyweight premium textile blend",
+                "Hand-finished atelier accents",
+              ];
+
           const normalized = {
-            ...dbProduct,
-            id: (dbProduct as any).id || (dbProduct as any).slug || (dbProduct as any)._id?.toString(),
-            isNew: (dbProduct as any).isNew !== undefined ? (dbProduct as any).isNew : (dbProduct as any).isNewPiece,
+            ...raw,
+            id: raw.id || raw.slug || raw._id?.toString(),
+            category: raw.category || "MEN",
+            description: raw.description || "Archival tailored garment with sculptural proportions, engineered for movement and luxury comfort.",
+            images,
+            colors,
+            sizes,
+            details,
+            shippingInfo: raw.shippingInfo || "Complimentary worldwide tracked courier delivery.",
+            careInstructions: raw.careInstructions || "Specialist atelier dry clean only.",
+            stockCount: typeof raw.stockCount === "number" ? raw.stockCount : 50,
+            isNew: raw.isNew !== undefined ? raw.isNew : raw.isNewPiece,
+            _id: raw._id?.toString(),
           };
           return NextResponse.json({ success: true, data: normalized });
         }
@@ -41,21 +90,36 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
     }
 
+    // Match helper for local collections
+    const matchItem = (p: Product) => {
+      const pid = (p.id || "").toLowerCase();
+      const pslug = (p.slug || "").toLowerCase();
+      const pname = (p.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      return (
+        pid === cleanId ||
+        pslug === cleanId ||
+        pslug === baseSlug ||
+        pid.includes(baseSlug) ||
+        pslug.includes(baseSlug) ||
+        pname === baseSlug
+      );
+    };
+
     // 2. Check persistent disk file storage
     const customList = getCustomProductsFromFile();
-    const diskProduct = customList.find((p) => p.id === id || p.slug === id);
+    const diskProduct = customList.find(matchItem);
     if (diskProduct) {
       return NextResponse.json({ success: true, data: diskProduct });
     }
 
     // 3. Check baseline seed catalog
-    const seedProduct = PRODUCTS.find((p) => p.id === id || p.slug === id);
+    const seedProduct = PRODUCTS.find(matchItem);
     if (seedProduct) {
       return NextResponse.json({ success: true, data: seedProduct });
     }
 
     // 4. Check in-memory fallback
-    const memoryProduct = getLiveProducts().find((p) => p.id === id || p.slug === id);
+    const memoryProduct = getLiveProducts().find(matchItem);
     if (memoryProduct) {
       return NextResponse.json({ success: true, data: memoryProduct });
     }
