@@ -20,6 +20,7 @@ export interface SslcommerzInitiateParams {
   productName?: string;
   productCategory?: string;
   deliveryMethod?: string;
+  siteBaseUrl?: string;
 }
 
 export interface SslcommerzInitiateResult {
@@ -81,14 +82,14 @@ export async function initiateSslcommerzPayment(
 ): Promise<SslcommerzInitiateResult> {
   const storeId = process.env.SSLCOMMERZ_STORE_ID?.trim();
   const storePasswd = process.env.SSLCOMMERZ_STORE_PASSWORD?.trim();
-  const baseUrl = getSiteBaseUrl();
+  const baseUrl = params.siteBaseUrl ? params.siteBaseUrl.replace(/\/$/, "") : getSiteBaseUrl();
   const sslBaseUrl = getSslcommerzBaseUrl();
 
   if (!storeId || !storePasswd) {
     console.error("[SSLCOMMERZ] Missing SSLCOMMERZ_STORE_ID or SSLCOMMERZ_STORE_PASSWORD in environment.");
     return {
       success: false,
-      error: "Payment gateway credentials are not configured. Please check environment variables.",
+      error: "Payment gateway credentials are not configured. Please check environment variables (SSLCOMMERZ_STORE_ID, SSLCOMMERZ_STORE_PASSWORD).",
     };
   }
 
@@ -103,41 +104,51 @@ export async function initiateSslcommerzPayment(
   formData.append("currency", params.currency || "BDT");
   formData.append("tran_id", params.transactionId);
 
-  // Return Callbacks (Fully qualified absolute URLs for local & Vercel)
+  // Return Callbacks (Fully qualified absolute URLs dynamically targeting active domain)
   formData.append("success_url", `${baseUrl}/api/payment/sslcommerz/success`);
   formData.append("fail_url", `${baseUrl}/api/payment/sslcommerz/fail`);
   formData.append("cancel_url", `${baseUrl}/api/payment/sslcommerz/cancel`);
   formData.append("ipn_url", `${baseUrl}/api/payment/sslcommerz/ipn`);
 
   // Product & Order Details
+  const cleanProductName = (params.productName || "Noir Atelier Garments").replace(/[^\w\s-]/g, "").slice(0, 100);
   formData.append("shipping_method", "YES");
   formData.append("num_of_item", "1");
-  formData.append("product_name", params.productName || "Noir Atelier Garments");
-  formData.append("product_category", params.productCategory || "Luxury Fashion");
+  formData.append("product_name", cleanProductName);
+  formData.append("product_category", (params.productCategory || "Luxury Fashion").slice(0, 50));
   formData.append("product_profile", "general");
 
-  // Customer Information
-  formData.append("cus_name", params.customerName || "Valued Client");
-  formData.append("cus_email", params.customerEmail || "client@noir.studio");
-  formData.append("cus_phone", params.customerPhone || "01700000000");
-  formData.append("cus_add1", params.customerAddress || "Atelier Delivery Address");
-  formData.append("cus_city", params.customerCity || "Dhaka");
-  formData.append("cus_state", params.customerState || "Dhaka");
-  formData.append("cus_postcode", params.customerPostcode || "1212");
-  formData.append("cus_country", params.customerCountry || "Bangladesh");
+  // Customer Information (Sanitized for SSLCOMMERZ gateway specifications)
+  const cleanPhone = (params.customerPhone || "01700000000").replace(/[^0-9+]/g, "").slice(0, 20) || "01700000000";
+  const cleanName = (params.customerName || "Valued Client").trim().slice(0, 50);
+  const cleanEmail = (params.customerEmail || "client@noir.studio").trim().slice(0, 50);
+  const cleanAddress = (params.customerAddress || "Atelier Delivery Address").slice(0, 100);
+  const cleanCity = (params.customerCity || "Dhaka").slice(0, 50);
+  const cleanState = (params.customerState || "Dhaka").slice(0, 50);
+  const cleanPostcode = (params.customerPostcode || "1212").replace(/[^0-9a-zA-Z-]/g, "").slice(0, 20) || "1212";
+  const cleanCountry = (params.customerCountry || "Bangladesh").slice(0, 50);
+
+  formData.append("cus_name", cleanName);
+  formData.append("cus_email", cleanEmail);
+  formData.append("cus_phone", cleanPhone);
+  formData.append("cus_add1", cleanAddress);
+  formData.append("cus_city", cleanCity);
+  formData.append("cus_state", cleanState);
+  formData.append("cus_postcode", cleanPostcode);
+  formData.append("cus_country", cleanCountry);
 
   // Shipping Information
-  formData.append("ship_name", params.customerName || "Valued Client");
-  formData.append("ship_add1", params.customerAddress || "Atelier Delivery Address");
-  formData.append("ship_city", params.customerCity || "Dhaka");
-  formData.append("ship_state", params.customerState || "Dhaka");
-  formData.append("ship_postcode", params.customerPostcode || "1212");
-  formData.append("ship_country", params.customerCountry || "Bangladesh");
+  formData.append("ship_name", cleanName);
+  formData.append("ship_add1", cleanAddress);
+  formData.append("ship_city", cleanCity);
+  formData.append("ship_state", cleanState);
+  formData.append("ship_postcode", cleanPostcode);
+  formData.append("ship_country", cleanCountry);
 
   // Custom Reference Values for Callback verification
   formData.append("value_a", params.orderId);
   formData.append("value_b", params.transactionId);
-  formData.append("value_c", params.customerEmail);
+  formData.append("value_c", cleanEmail);
 
   try {
     const sessionEndpoint = `${sslBaseUrl}/gwprocess/v4/api.php`;
@@ -175,9 +186,18 @@ export async function initiateSslcommerzPayment(
     const failureReason = data.failedreason || data.status || "Failed to initialize payment session";
     console.error("[SSLCOMMERZ] Gateway session creation failed:", failureReason);
 
+    let userFriendlyError = failureReason;
+    if (
+      failureReason.toUpperCase().includes("CREDENTIAL") ||
+      failureReason.toUpperCase().includes("STORE") ||
+      failureReason.toUpperCase().includes("NOT MATCHED")
+    ) {
+      userFriendlyError = `SSLCOMMERZ Credential Error: "${failureReason}". Verify whether your credentials belong to Sandbox (sandbox.sslcommerz.com) or Live Production (securepay.sslcommerz.com) in your environment variables.`;
+    }
+
     return {
       success: false,
-      error: failureReason,
+      error: userFriendlyError,
       raw: data,
     };
   } catch (err: any) {

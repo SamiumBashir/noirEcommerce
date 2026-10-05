@@ -100,30 +100,39 @@ export async function POST(request: NextRequest) {
     }
 
     const customProducts = getCustomProductsFromFile();
-    const productCatalogMap = new Map<string, Product>();
+    const allProducts = [...mongoProducts, ...customProducts, ...PRODUCTS];
 
-    PRODUCTS.forEach((p) => {
-      if (p.id) productCatalogMap.set(p.id, p);
-      if (p.slug) productCatalogMap.set(p.slug, p);
-    });
+    const findProduct = (targetId: string): any => {
+      if (!targetId) return null;
+      const cleanTarget = targetId.trim().toLowerCase();
 
-    customProducts.forEach((p) => {
-      if (p.id) productCatalogMap.set(p.id, p);
-      if (p.slug) productCatalogMap.set(p.slug, p);
-    });
+      // 1. Exact or lowercase match on id, slug, or MongoDB _id string
+      for (const p of allProducts) {
+        const pid = (p.id || "").toString().trim().toLowerCase();
+        const pslug = (p.slug || "").toString().trim().toLowerCase();
+        const pmid = p._id ? p._id.toString().trim().toLowerCase() : "";
+        if (pid === cleanTarget || pslug === cleanTarget || pmid === cleanTarget) {
+          return p;
+        }
+      }
 
-    mongoProducts.forEach((p) => {
-      const pid = p.id || p.slug || (p._id ? p._id.toString() : "");
-      if (pid) productCatalogMap.set(pid, p);
-      if (p.slug) productCatalogMap.set(p.slug, p);
-    });
+      // 2. Fallback match by product name
+      for (const p of allProducts) {
+        const pname = (p.name || "").toString().trim().toLowerCase();
+        if (pname === cleanTarget || cleanTarget.includes((p.slug || "").toLowerCase())) {
+          return p;
+        }
+      }
+
+      return null;
+    };
 
     // Validate and calculate subtotal server-side
     const validatedProducts = [];
     let serverSubtotal = 0;
 
     for (const item of items) {
-      const product = productCatalogMap.get(item.productId);
+      const product = findProduct(item.productId);
       if (!product) {
         return NextResponse.json(
           {

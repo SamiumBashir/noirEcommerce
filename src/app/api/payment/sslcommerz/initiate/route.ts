@@ -74,32 +74,39 @@ export async function POST(request: NextRequest) {
     }
 
     const customProducts = getCustomProductsFromFile();
+    const allProducts = [...mongoProducts, ...customProducts, ...PRODUCTS];
 
-    const productCatalogMap = new Map<string, Product>();
+    const findProduct = (targetId: string): any => {
+      if (!targetId) return null;
+      const cleanTarget = targetId.trim().toLowerCase();
 
-    // Priority order: Baseline < Disk < MongoDB
-    PRODUCTS.forEach((p) => {
-      if (p.id) productCatalogMap.set(p.id, p);
-      if (p.slug) productCatalogMap.set(p.slug, p);
-    });
+      // 1. Exact or lowercase match on id, slug, or MongoDB _id string
+      for (const p of allProducts) {
+        const pid = (p.id || "").toString().trim().toLowerCase();
+        const pslug = (p.slug || "").toString().trim().toLowerCase();
+        const pmid = p._id ? p._id.toString().trim().toLowerCase() : "";
+        if (pid === cleanTarget || pslug === cleanTarget || pmid === cleanTarget) {
+          return p;
+        }
+      }
 
-    customProducts.forEach((p) => {
-      if (p.id) productCatalogMap.set(p.id, p);
-      if (p.slug) productCatalogMap.set(p.slug, p);
-    });
+      // 2. Fallback match by product name
+      for (const p of allProducts) {
+        const pname = (p.name || "").toString().trim().toLowerCase();
+        if (pname === cleanTarget || cleanTarget.includes((p.slug || "").toLowerCase())) {
+          return p;
+        }
+      }
 
-    mongoProducts.forEach((p) => {
-      const pid = p.id || p.slug || (p._id ? p._id.toString() : "");
-      if (pid) productCatalogMap.set(pid, p);
-      if (p.slug) productCatalogMap.set(p.slug, p);
-    });
+      return null;
+    };
 
     // 2. Validate all products and calculate subtotal strictly server-side
     const validatedProducts = [];
     let serverSubtotal = 0;
 
     for (const item of items) {
-      const product = productCatalogMap.get(item.productId);
+      const product = findProduct(item.productId);
       if (!product) {
         return NextResponse.json(
           {
@@ -199,6 +206,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Extract actual request origin from caller (handles custom domains, Vercel deployments, and localhost automatically)
+    const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+    const proto = request.headers.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https");
+    const callerSiteUrl = host ? `${proto}://${host}` : undefined;
+
     // 6. Call SSLCOMMERZ to initiate payment session
     const firstProductName = validatedProducts[0]?.name || "Noir Garments";
     const sslInitiateResult = await initiateSslcommerzPayment({
@@ -217,6 +229,7 @@ export async function POST(request: NextRequest) {
       productName: validatedProducts.length > 1 ? `${firstProductName} + more` : firstProductName,
       productCategory: "Luxury Fashion",
       deliveryMethod,
+      siteBaseUrl: callerSiteUrl,
     });
 
     if (!sslInitiateResult.success || !sslInitiateResult.gatewayPageUrl) {

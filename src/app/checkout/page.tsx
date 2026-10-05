@@ -88,9 +88,20 @@ export default function CheckoutPage() {
     }
 
     if (currentStep === 4) {
-      // 1. Basic validation
-      if (!email || !firstName || !lastName || !address || !city) {
-        setCheckoutError("Please complete all required shipping & contact details.");
+      // 1. Precise validation with auto-navigation to missing step
+      if (!firstName || !lastName) {
+        setCheckoutError("Please enter your First and Last name in Step 1.");
+        setCurrentStep(1);
+        return;
+      }
+      if (!email || !email.includes("@")) {
+        setCheckoutError("Please provide a valid email address in Step 1 for order confirmation.");
+        setCurrentStep(1);
+        return;
+      }
+      if (!address || !city) {
+        setCheckoutError("Please complete your delivery street address and city in Step 2.");
+        setCurrentStep(2);
         return;
       }
 
@@ -826,13 +837,15 @@ export default function CheckoutPage() {
                     </div>
                   )}
 
-                  {checkoutError && (
-                    <div className="p-4 bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
-                      <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                      <p>{checkoutError}</p>
-                    </div>
-                  )}
                 </motion.div>
+              )}
+
+              {/* Prominent Action Banner for any Step or Gateway Errors */}
+              {checkoutError && (
+                <div className="p-4 bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  <p className="leading-relaxed font-medium">{checkoutError}</p>
+                </div>
               )}
 
               {/* Action Buttons */}

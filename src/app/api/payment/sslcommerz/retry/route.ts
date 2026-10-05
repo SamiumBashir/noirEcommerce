@@ -63,6 +63,11 @@ export async function POST(request: NextRequest) {
       }
     );
 
+    // Extract caller site URL
+    const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+    const proto = request.headers.get("x-forwarded-proto") || (host?.includes("localhost") ? "http" : "https");
+    const callerSiteUrl = host ? `${proto}://${host}` : undefined;
+
     // Call SSLCOMMERZ
     const firstProductName = order.products?.[0]?.name || "Noir Garments";
     const sslResult = await initiateSslcommerzPayment({
@@ -81,6 +86,7 @@ export async function POST(request: NextRequest) {
       productName: order.products?.length > 1 ? `${firstProductName} + more` : firstProductName,
       productCategory: "Luxury Fashion",
       deliveryMethod: order.deliveryMethod,
+      siteBaseUrl: callerSiteUrl,
     });
 
     if (!sslResult.success || !sslResult.gatewayPageUrl) {
