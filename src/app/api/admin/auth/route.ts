@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { connectToDatabase } from "@/lib/db/mongoose";
+import { LoginActivityModel } from "@/lib/db/models/LoginActivity";
+import { getRequestInfo } from "@/lib/security/requestInfo";
+import { sendLoginNotification } from "@/lib/email/sendLoginNotification";
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,6 +42,38 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    // Connect to database and log login activity
+    await connectToDatabase();
+    const requestInfo = getRequestInfo(request);
+
+    const loginActivity = await LoginActivityModel.create({
+      email: normalizedEmail,
+      ip: requestInfo.ip,
+      userAgent: requestInfo.userAgent,
+      device: requestInfo.device,
+      browser: requestInfo.browser,
+      os: requestInfo.os,
+      location: requestInfo.location,
+      status: "SUCCESS",
+      emailNotificationSent: false,
+    }).catch(() => null);
+
+    // Trigger security notification email asynchronously
+    sendLoginNotification({
+      email: normalizedEmail,
+      name: "Curator Admin",
+      ip: requestInfo.ip,
+      userAgent: requestInfo.userAgent,
+      device: requestInfo.device,
+      browser: requestInfo.browser,
+      os: requestInfo.os,
+      location: requestInfo.location,
+      loginTime: requestInfo.loginTime,
+      loginActivityId: loginActivity?._id?.toString(),
+    }).catch((err) => {
+      console.error("[AUTH-ADMIN] Background login notification trigger error:", err?.message || err);
+    });
 
     return NextResponse.json({
       success: true,
