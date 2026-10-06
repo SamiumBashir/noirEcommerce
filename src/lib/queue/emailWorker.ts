@@ -6,7 +6,7 @@ import {
   LoginNotificationJobData,
   isRedisConfigured,
 } from "./emailQueue";
-import { executeDirectResendDelivery } from "../email/sendLoginNotification";
+import { executeDirectEmailDelivery } from "../email/sendLoginNotification";
 
 let emailWorker: Worker<LoginNotificationJobData> | null = null;
 
@@ -31,8 +31,8 @@ export function startEmailWorker(): Worker<LoginNotificationJobData> | null {
       console.log(`[Worker] Processing email job ${job.id} for ${job.data.email}`);
 
       if (job.name === LOGIN_NOTIFICATION_JOB) {
-        const result = await executeDirectResendDelivery(job.data);
-        if (!result.success && result.error !== "RESEND_API_KEY_NOT_CONFIGURED") {
+        const result = await executeDirectEmailDelivery(job.data);
+        if (!result.success && result.error !== "SMTP_NOT_CONFIGURED") {
           throw new Error(result.error || "Email delivery failed in worker");
         }
         return result;

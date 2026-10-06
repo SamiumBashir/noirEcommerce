@@ -1,4 +1,4 @@
-import { getResendClient, getEmailFrom } from "./resend";
+import { getMailTransporter, getEmailFrom } from "./nodemailer";
 import { renderLoginNotificationEmail } from "./templates/loginNotificationEmail";
 import { LoginActivityModel } from "../db/models/LoginActivity";
 import { connectToDatabase } from "../db/mongoose";
@@ -26,7 +26,7 @@ export interface SendLoginNotificationResult {
 
 /**
  * Sends a professional security login notification email to the user.
- * Supports Redis BullMQ queue when available, or direct serverless execution.
+ * Supports Redis BullMQ queue when available, or direct serverless execution via Nodemailer.
  * Completely non-blocking and safe: failures NEVER affect user authentication.
  */
 export async function sendLoginNotification(
@@ -53,7 +53,7 @@ export async function sendLoginNotification(
     }).format(new Date()) + " UTC";
 
   try {
-    // 1. Idempotency Check (Section 10): Avoid sending duplicate emails for the same login
+    // 1. Idempotency Check: Avoid sending duplicate emails for the same login
     if (loginActivityId) {
       await connectToDatabase();
       const existingActivity = await LoginActivityModel.findById(loginActivityId).lean();
@@ -63,7 +63,7 @@ export async function sendLoginNotification(
       }
     }
 
-    // 2. Queue Mode (Section 9): If Redis is available, enqueue job
+    // 2. Queue Mode: If Redis is available, enqueue job
     if (isRedisConfigured()) {
       const enqueueResult = await enqueueLoginEmailJob({
         email,
@@ -88,8 +88,8 @@ export async function sendLoginNotification(
       }
     }
 
-    // 3. Direct Serverless Execution: Send email via Resend
-    return await executeDirectResendDelivery({
+    // 3. Direct Execution: Send email via Nodemailer (Gmail SMTP)
+    return await executeDirectEmailDelivery({
       email,
       name,
       ip,
@@ -102,7 +102,6 @@ export async function sendLoginNotification(
       loginActivityId,
     });
   } catch (error: any) {
-    // Section 8: Always catch errors safely so authentication is NEVER blocked
     console.error("[EMAIL] Unexpected error in sendLoginNotification:", error?.message || error);
     if (loginActivityId) {
       await connectToDatabase();
@@ -118,9 +117,9 @@ export async function sendLoginNotification(
 }
 
 /**
- * Direct delivery via Resend API
+ * Direct delivery via Nodemailer Gmail SMTP
  */
-export async function executeDirectResendDelivery(params: {
+export async function executeDirectEmailDelivery(params: {
   email: string;
   name: string;
   ip: string;
@@ -144,10 +143,10 @@ export async function executeDirectResendDelivery(params: {
     loginActivityId,
   } = params;
 
-  const resend = getResendClient();
+  const transporter = getMailTransporter();
 
-  if (!resend) {
-    const notice = "RESEND_API_KEY is not configured or in development mode. Email notification skipped.";
+  if (!transporter) {
+    const notice = "Gmail SMTP credentials (SMTP_USER, SMTP_PASS) not configured. Email notification skipped.";
     console.warn(`[EMAIL] ${notice} Target: ${email}`);
 
     if (loginActivityId) {
@@ -155,14 +154,14 @@ export async function executeDirectResendDelivery(params: {
       await LoginActivityModel.findByIdAndUpdate(loginActivityId, {
         $set: {
           emailNotificationSent: false,
-          emailNotificationError: "RESEND_API_KEY_NOT_CONFIGURED",
+          emailNotificationError: "SMTP_NOT_CONFIGURED",
         },
       }).catch(() => {});
     }
 
     return {
       success: false,
-      error: "RESEND_API_KEY_NOT_CONFIGURED",
+      error: "SMTP_NOT_CONFIGURED",
     };
   }
 
@@ -179,22 +178,31 @@ export async function executeDirectResendDelivery(params: {
 
   const from = getEmailFrom();
 
-  const { data, error } = await resend.emails.send({
-    from,
-    to: email,
-    subject: "New Login Detected",
-    html,
-    text,
-  });
+  try {
+    const info = await transporter.sendMail({
+      from,
+      to: email,
+      subject: "New Login Detected — NOIR Security",
+      html,
+      text,
+    });
 
-  if (error) {
-    if (error.message?.includes("You can only send testing emails to your own email address")) {
-      console.warn(
-        `[RESEND NOTICE] Login security alert to ${email} skipped due to Resend sandbox restriction (only account owner receives emails). Verify domain at resend.com/domains to deliver to all users.`
-      );
-    } else {
-      console.error(`[EMAIL] Resend delivery failed for ${email}:`, error.message);
+    console.log(`[EMAIL] Login notification sent successfully to ${email} (Message ID: ${info.messageId})`);
+
+    if (loginActivityId) {
+      await connectToDatabase();
+      await LoginActivityModel.findByIdAndUpdate(loginActivityId, {
+        $set: {
+          emailNotificationSent: true,
+          emailJobId: info.messageId,
+          emailNotificationError: undefined,
+        },
+      }).catch(() => {});
     }
+
+    return { success: true, id: info.messageId };
+  } catch (error: any) {
+    console.error(`[EMAIL] Gmail delivery failed for ${email}:`, error.message);
 
     if (loginActivityId) {
       await connectToDatabase();
@@ -208,19 +216,7 @@ export async function executeDirectResendDelivery(params: {
 
     return { success: false, error: error.message };
   }
-
-  console.log(`[EMAIL] Login notification sent successfully to ${email} (Message ID: ${data?.id})`);
-
-  if (loginActivityId) {
-    await connectToDatabase();
-    await LoginActivityModel.findByIdAndUpdate(loginActivityId, {
-      $set: {
-        emailNotificationSent: true,
-        emailJobId: data?.id,
-        emailNotificationError: undefined,
-      },
-    }).catch(() => {});
-  }
-
-  return { success: true, id: data?.id };
 }
+
+// Backwards-compatible export alias for worker queue
+export const executeDirectResendDelivery = executeDirectEmailDelivery;

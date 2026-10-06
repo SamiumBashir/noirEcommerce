@@ -111,7 +111,7 @@ async function runTestSuite() {
     location: activity.location,
     loginActivityId: activity._id.toString(),
   });
-  // Since RESEND_API_KEY is currently a placeholder locally, it safely catches without throwing
+  // Tests non-blocking execution regardless of SMTP configuration
   assert(
     typeof dispatchResult === "object",
     "sendLoginNotification executes without throwing unhandled exceptions"
