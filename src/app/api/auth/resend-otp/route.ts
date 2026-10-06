@@ -42,22 +42,33 @@ export async function POST(request: NextRequest) {
     user.verificationOtpExpires = otpExpires;
     await user.save();
 
-    // Send OTP email
-    sendOtpEmail({
-      email: user.email,
-      name: user.name,
-      otp,
-      expiresInMinutes: 10,
-    }).catch((err) => {
-      console.error("[AUTH] Resend OTP email failed:", err?.message || err);
-    });
+    // Send OTP email (AWAITED to guarantee delivery before Vercel serverless freezes execution)
+    let emailDispatchError: string | null = null;
+    try {
+      const emailResult = await sendOtpEmail({
+        email: user.email,
+        name: user.name,
+        otp,
+        expiresInMinutes: 10,
+      });
+      if (!emailResult.success) {
+        emailDispatchError = emailResult.error || "Email delivery failed";
+      }
+    } catch (err: any) {
+      emailDispatchError = err?.message || "Unexpected email error";
+    }
 
     const isDev = process.env.NODE_ENV !== "production";
+    const provideOtpFallback = isDev || Boolean(emailDispatchError);
 
     return NextResponse.json({
       success: true,
-      message: `A new 6-digit verification code has been sent to ${user.email}.`,
-      ...(isDev ? { devOtp: otp } : {}),
+      message: emailDispatchError
+        ? `Fresh code generated. Email dispatch notice: ${emailDispatchError}`
+        : `A new 6-digit verification code has been sent to ${user.email}.`,
+      emailSent: !emailDispatchError,
+      emailError: emailDispatchError,
+      ...(provideOtpFallback ? { devOtp: otp } : {}),
     });
   } catch (error: any) {
     console.error("[AUTH] Resend OTP error:", error);

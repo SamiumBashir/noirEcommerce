@@ -194,9 +194,8 @@ export async function POST(request: NextRequest) {
       emailNotificationSent: false,
     });
 
-    // 8. Trigger login notification email asynchronously (Section 8)
-    // Non-blocking: failures NEVER crash or delay the login response
-    sendLoginNotification({
+    // 8. Trigger login notification email (AWAITED to guarantee delivery before Vercel serverless freezes execution)
+    await sendLoginNotification({
       email: user.email,
       name: user.name,
       ip: requestInfo.ip,

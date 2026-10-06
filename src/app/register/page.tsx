@@ -53,7 +53,10 @@ function RegisterForm() {
     if (result?.requiresOtp) {
       setStep("otp");
       setResendCooldown(60);
-      if (result.devOtp) {
+      if (result.emailError) {
+        setOtpError(`Server Email Notice: ${result.emailError}${result.devOtp ? ` — Fallback Code: ${result.devOtp}` : ""}`);
+        if (result.devOtp) setOtp(result.devOtp);
+      } else if (result.devOtp && process.env.NODE_ENV !== "production") {
         setOtp(result.devOtp);
         setOtpSuccessMessage(`A 6-digit code has been dispatched. (Testing code: ${result.devOtp})`);
       } else {
@@ -96,7 +99,10 @@ function RegisterForm() {
     setOtpError("");
     const res = await resendOtp(email);
     if (res.success) {
-      if (res.devOtp) {
+      if (res.emailError) {
+        setOtpError(`Server Email Notice: ${res.emailError}${res.devOtp ? ` — Fallback Code: ${res.devOtp}` : ""}`);
+        if (res.devOtp) setOtp(res.devOtp);
+      } else if (res.devOtp && process.env.NODE_ENV !== "production") {
         setOtp(res.devOtp);
         setOtpSuccessMessage(`A fresh verification code has been dispatched. (Testing code: ${res.devOtp})`);
       } else {

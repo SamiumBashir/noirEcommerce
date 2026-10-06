@@ -16,20 +16,20 @@ export interface SendOtpEmailResult {
 
 /**
  * Sends a 6-digit OTP verification email via Nodemailer (Gmail SMTP).
- * Non-blocking and resilient: in dev environments without SMTP credentials, logs the OTP safely.
+ * Returns clear diagnostic results for serverless execution.
  */
 export async function sendOtpEmail(params: SendOtpEmailParams): Promise<SendOtpEmailResult> {
   const { email, name, otp, expiresInMinutes = 10 } = params;
   const transporter = getMailTransporter();
 
   if (!transporter) {
-    console.log(`\n======================================================`);
-    console.log(`[EMAIL DEV MODE] OTP code for ${email}: ${otp}`);
-    console.log(`(Set SMTP_USER and SMTP_PASS in .env.local for live Gmail dispatch)`);
-    console.log(`======================================================\n`);
+    console.warn(
+      `\n[EMAIL WARNING] SMTP_USER or SMTP_PASS is missing in environment variables. ` +
+      `Cannot send email to ${email}. Active OTP: ${otp}\n`
+    );
     return {
-      success: true,
-      error: "DEV_MODE_LOGGED",
+      success: false,
+      error: "SMTP_CREDENTIALS_NOT_CONFIGURED",
     };
   }
 
@@ -53,8 +53,7 @@ export async function sendOtpEmail(params: SendOtpEmailParams): Promise<SendOtpE
     console.log(`[EMAIL] OTP verification email sent via Gmail to ${email} (Message ID: ${info.messageId})`);
     return { success: true, id: info.messageId };
   } catch (error: any) {
-    console.error(`[EMAIL] Error sending OTP to ${email} via Gmail SMTP:`, error?.message || error);
-    // In case of error, log code to server console as fallback
+    console.error(`[EMAIL ERROR] Failed to send OTP to ${email} via Gmail SMTP:`, error?.message || error);
     console.log(`[EMAIL FALLBACK] OTP for ${email}: ${otp}`);
     return { success: false, error: error?.message || "OTP delivery failed" };
   }

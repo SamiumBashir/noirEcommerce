@@ -107,8 +107,8 @@ export async function POST(request: NextRequest) {
       name: user.name,
     });
 
-    // TRIGGER WELCOME WISH EMAIL FROM NOIR ATELIER ASYNCHRONOUSLY
-    sendWelcomeEmail({
+    // TRIGGER WELCOME WISH EMAIL (AWAITED to guarantee delivery before Vercel serverless freezes execution)
+    await sendWelcomeEmail({
       email: user.email,
       name: user.name,
     }).catch((err) => {

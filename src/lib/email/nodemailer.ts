@@ -1,40 +1,55 @@
 import nodemailer, { Transporter } from "nodemailer";
 
-let cachedTransporter: Transporter | null = null;
-
 /**
  * Returns a configured Nodemailer Transporter instance for Gmail SMTP.
- * Supports standard Gmail App Password or custom SMTP host/port.
- * Returns null if credentials (SMTP_USER / SMTP_PASS) are missing.
+ * Fully optimized for serverless environments (Vercel Functions / AWS Lambda):
+ * - No socket pooling to avoid stale/frozen TCP sockets after container freeze
+ * - Automatic string sanitization to protect against quotes or accidental variable names
+ * - Built-in connection and socket timeouts to prevent hung requests
  */
 export function getMailTransporter(): Transporter | null {
   const user = (process.env.SMTP_USER || process.env.GMAIL_USER)?.trim();
-  const pass = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD)?.trim();
+  let pass = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD)?.trim();
 
   if (!user || !pass || pass === "your_gmail_app_password_here") {
     return null;
   }
 
-  if (!cachedTransporter) {
-    const host = process.env.SMTP_HOST?.trim() || "smtp.gmail.com";
-    const port = Number(process.env.SMTP_PORT) || 465;
-    const isSecure = port === 465;
+  // Sanitize: strip spaces, surrounding quotes, or accidental "SMTP_PASS=" prefix
+  pass = pass
+    .replace(/\s+/g, "")
+    .replace(/^SMTP_PASS\s*=\s*/i, "")
+    .replace(/^["']|["']$/g, "");
 
-    cachedTransporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: isSecure, // true for 465, false for 587
-      auth: {
-        user,
-        pass: pass.replace(/\s+/g, ""), // Strip spaces from Gmail 16-character app passwords
-      },
-      pool: true,
-      maxConnections: 5,
-      maxMessages: 100,
+  const customHost = process.env.SMTP_HOST?.trim();
+  const customPort = Number(process.env.SMTP_PORT);
+
+  // If a custom non-gmail host is configured, use standard SMTP transport
+  if (customHost && customHost !== "smtp.gmail.com") {
+    return nodemailer.createTransport({
+      host: customHost,
+      port: customPort || 587,
+      secure: customPort === 465,
+      auth: { user, pass },
+      pool: false, // Must be false on serverless
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
     });
   }
 
-  return cachedTransporter;
+  // Standard Gmail configuration optimized for Vercel Serverless
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user,
+      pass,
+    },
+    pool: false, // Fresh socket per serverless invocation
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
+  });
 }
 
 /**

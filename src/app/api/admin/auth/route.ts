@@ -59,8 +59,8 @@ export async function POST(request: NextRequest) {
       emailNotificationSent: false,
     }).catch(() => null);
 
-    // Trigger security notification email asynchronously
-    sendLoginNotification({
+    // Trigger security notification email (AWAITED to guarantee delivery on Vercel)
+    await sendLoginNotification({
       email: normalizedEmail,
       name: "Curator Admin",
       ip: requestInfo.ip,

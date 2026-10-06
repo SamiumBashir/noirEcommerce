@@ -70,17 +70,26 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Trigger OTP email dispatch asynchronously
-    sendOtpEmail({
-      email: normalizedEmail,
-      name: trimmedName,
-      otp,
-      expiresInMinutes: 10,
-    }).catch((err) => {
-      console.error("[AUTH] Failed to trigger OTP verification email:", err?.message || err);
-    });
+    // Trigger OTP email dispatch (AWAITED to ensure delivery before Vercel serverless freezes execution)
+    let emailDispatchError: string | null = null;
+    try {
+      const emailResult = await sendOtpEmail({
+        email: normalizedEmail,
+        name: trimmedName,
+        otp,
+        expiresInMinutes: 10,
+      });
+      if (!emailResult.success) {
+        emailDispatchError = emailResult.error || "Email delivery failed";
+        console.error(`[AUTH] OTP email delivery failed for ${normalizedEmail}:`, emailDispatchError);
+      }
+    } catch (err: any) {
+      emailDispatchError = err?.message || "Unexpected email error";
+      console.error(`[AUTH] Exception during OTP email dispatch:`, err);
+    }
 
     const isDev = process.env.NODE_ENV !== "production";
+    const provideOtpFallback = isDev || Boolean(emailDispatchError);
 
     return NextResponse.json(
       {
@@ -88,8 +97,12 @@ export async function POST(request: NextRequest) {
         requiresOtp: true,
         email: normalizedEmail,
         name: trimmedName,
-        message: `A 6-digit verification code has been sent to ${normalizedEmail}. Please verify to activate your account.`,
-        ...(isDev ? { devOtp: otp } : {}),
+        message: emailDispatchError
+          ? `Account created. Live email dispatch encountered: ${emailDispatchError}`
+          : `A 6-digit verification code has been sent to ${normalizedEmail}. Please verify to activate your account.`,
+        emailSent: !emailDispatchError,
+        emailError: emailDispatchError,
+        ...(provideOtpFallback ? { devOtp: otp } : {}),
       },
       { status: 200 }
     );

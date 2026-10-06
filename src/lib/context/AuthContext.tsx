@@ -46,9 +46,9 @@ interface AuthContextType {
   isAdmin: boolean;
   login: (email: string, password?: string, role?: "admin" | "customer") => Promise<{ success: boolean; requiresVerification?: boolean; email?: string; error?: string }>;
   loginDemoPatron: () => Promise<void>;
-  register: (name: string, email: string, password?: string) => Promise<{ success: boolean; requiresOtp?: boolean; email?: string; devOtp?: string; error?: string }>;
+  register: (name: string, email: string, password?: string) => Promise<{ success: boolean; requiresOtp?: boolean; email?: string; devOtp?: string; emailSent?: boolean; emailError?: string; error?: string }>;
   verifyOtp: (email: string, otp: string) => Promise<{ success: boolean; error?: string }>;
-  resendOtp: (email: string) => Promise<{ success: boolean; message?: string; devOtp?: string; error?: string }>;
+  resendOtp: (email: string) => Promise<{ success: boolean; message?: string; devOtp?: string; emailSent?: boolean; emailError?: string; error?: string }>;
   logout: () => void;
   switchRole: (role: "admin" | "customer") => void;
   addOrder: (order: Omit<UserOrder, "id" | "date" | "status" | "trackingNumber">) => UserOrder;
@@ -295,7 +295,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     name: string,
     email: string,
     password?: string
-  ): Promise<{ success: boolean; requiresOtp?: boolean; email?: string; devOtp?: string; error?: string }> => {
+  ): Promise<{ success: boolean; requiresOtp?: boolean; email?: string; devOtp?: string; emailSent?: boolean; emailError?: string; error?: string }> => {
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
@@ -317,6 +317,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           requiresOtp: true,
           email: data.email || email,
           devOtp: data.devOtp,
+          emailSent: data.emailSent,
+          emailError: data.emailError,
         };
       }
 
@@ -390,7 +392,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resendOtp = async (
     email: string
-  ): Promise<{ success: boolean; message?: string; devOtp?: string; error?: string }> => {
+  ): Promise<{ success: boolean; message?: string; devOtp?: string; emailSent?: boolean; emailError?: string; error?: string }> => {
     try {
       const res = await fetch("/api/auth/resend-otp", {
         method: "POST",
@@ -406,7 +408,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
       }
 
-      return { success: true, message: data.message, devOtp: data.devOtp };
+      return {
+        success: true,
+        message: data.message,
+        devOtp: data.devOtp,
+        emailSent: data.emailSent,
+        emailError: data.emailError,
+      };
     } catch (err: any) {
       return {
         success: false,
