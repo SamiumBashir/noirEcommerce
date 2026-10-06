@@ -15,13 +15,23 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage("");
     setLoading(true);
+
     const isAdminEmail = email.toLowerCase().includes("admin");
-    await login(email, isAdminEmail ? "admin" : "customer");
+    const result = await login(email, password, isAdminEmail ? "admin" : "customer");
+
     setLoading(false);
+
+    if (result && !result.success) {
+      setErrorMessage(result.error || "Authentication failed. Please verify your credentials.");
+      return;
+    }
+
     if (isAdminEmail) {
       router.push("/admin");
     } else {
@@ -30,6 +40,7 @@ function LoginForm() {
   };
 
   const handleDemoCustomer = async () => {
+    setErrorMessage("");
     setLoading(true);
     await loginDemoPatron();
     setLoading(false);
@@ -82,6 +93,13 @@ function LoginForm() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
+          {errorMessage && (
+            <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded-sm flex items-start gap-2">
+              <span className="font-semibold">&#9888;</span>
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <label className="text-[11px] uppercase tracking-widest text-[#6B6B6B] block">
               Email Address

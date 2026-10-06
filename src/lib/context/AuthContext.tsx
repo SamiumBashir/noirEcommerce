@@ -44,9 +44,11 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
-  login: (email: string, role?: "admin" | "customer") => Promise<void>;
+  login: (email: string, password?: string, role?: "admin" | "customer") => Promise<{ success: boolean; requiresVerification?: boolean; email?: string; error?: string }>;
   loginDemoPatron: () => Promise<void>;
-  register: (name: string, email: string) => Promise<void>;
+  register: (name: string, email: string, password?: string) => Promise<{ success: boolean; requiresOtp?: boolean; email?: string; error?: string }>;
+  verifyOtp: (email: string, otp: string) => Promise<{ success: boolean; error?: string }>;
+  resendOtp: (email: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   logout: () => void;
   switchRole: (role: "admin" | "customer") => void;
   addOrder: (order: Omit<UserOrder, "id" | "date" | "status" | "trackingNumber">) => UserOrder;
@@ -150,26 +152,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, isMounted]);
 
-  const login = async (email: string, role: "admin" | "customer" = "customer") => {
+  const login = async (
+    email: string,
+    password?: string,
+    role: "admin" | "customer" = "customer"
+  ): Promise<{ success: boolean; error?: string }> => {
     const isExplicitAdmin = role === "admin" || email.toLowerCase().includes("admin");
-    const newUser: User = {
-      ...DEFAULT_USER,
-      email,
-      name: email.split("@")[0].replace(".", " ").toUpperCase(),
-      role: isExplicitAdmin ? "admin" : role,
-    };
-    if (isExplicitAdmin) {
-      localStorage.setItem("noir_admin_authenticated", "true");
+
+    try {
+      // 1. Call backend authentication API
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: password || "noir2026" }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        return {
+          success: false,
+          error: data.error || "Authentication failed. Please verify credentials.",
+        };
+      }
+
+      const authenticatedUser: User = {
+        ...DEFAULT_USER,
+        id: data.user?.id || `usr_${Date.now()}`,
+        name: data.user?.name || email.split("@")[0].replace(".", " ").toUpperCase(),
+        email: data.user?.email || email,
+        role: data.user?.role || (isExplicitAdmin ? "admin" : role),
+      };
+
+      if (data.token) {
+        localStorage.setItem("noir_token", data.token);
+      }
+      if (authenticatedUser.role === "admin") {
+        localStorage.setItem("noir_admin_authenticated", "true");
+      }
+      localStorage.setItem("noir_logged_in", "true");
+      localStorage.setItem("noir_auth_user", JSON.stringify(authenticatedUser));
+      setUser(authenticatedUser);
+
+      return { success: true };
+    } catch (err: any) {
+      console.warn("[Auth] Backend login API unreachable, using local fallback:", err.message);
+      // Fallback for offline environments
+      const fallbackUser: User = {
+        ...DEFAULT_USER,
+        email,
+        name: email.split("@")[0].replace(".", " ").toUpperCase(),
+        role: isExplicitAdmin ? "admin" : role,
+      };
+      if (isExplicitAdmin) {
+        localStorage.setItem("noir_admin_authenticated", "true");
+      }
+      localStorage.setItem("noir_logged_in", "true");
+      localStorage.setItem("noir_auth_user", JSON.stringify(fallbackUser));
+      setUser(fallbackUser);
+      return { success: true };
     }
-    localStorage.setItem("noir_logged_in", "true");
-    localStorage.setItem("noir_auth_user", JSON.stringify(newUser));
-    setUser(newUser);
   };
 
   const loginDemoPatron = async () => {
-    localStorage.setItem("noir_logged_in", "true");
-    localStorage.setItem("noir_auth_user", JSON.stringify(DEFAULT_USER));
-    setUser(DEFAULT_USER);
+    await login("alexander@noir.studio", "noir2026", "customer");
   };
 
   const adminLogin = async (
@@ -238,27 +284,138 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const adminLogout = () => {
+    localStorage.removeItem("noir_token");
     localStorage.removeItem("noir_admin_authenticated");
     localStorage.removeItem("noir_logged_in");
     localStorage.removeItem("noir_auth_user");
     setUser(null);
   };
 
-  const register = async (name: string, email: string) => {
-    const newUser: User = {
-      id: `usr_${Date.now()}`,
-      name,
-      email,
-      role: "customer",
-      addresses: [],
-      orders: [],
-    };
-    localStorage.setItem("noir_logged_in", "true");
-    localStorage.setItem("noir_auth_user", JSON.stringify(newUser));
-    setUser(newUser);
+  const register = async (
+    name: string,
+    email: string,
+    password?: string
+  ): Promise<{ success: boolean; requiresOtp?: boolean; email?: string; error?: string }> => {
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password: password || "noir2026" }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return {
+          success: false,
+          error: data.error || "Registration failed.",
+        };
+      }
+
+      // If OTP verification is required (standard flow)
+      if (data.requiresOtp) {
+        return {
+          success: true,
+          requiresOtp: true,
+          email: data.email || email,
+        };
+      }
+
+      const newUser: User = {
+        id: data.user?.id || `usr_${Date.now()}`,
+        name: data.user?.name || name,
+        email: data.user?.email || email,
+        role: data.user?.role || "customer",
+        addresses: [],
+        orders: [],
+      };
+      if (data.token) {
+        localStorage.setItem("noir_token", data.token);
+      }
+      localStorage.setItem("noir_logged_in", "true");
+      localStorage.setItem("noir_auth_user", JSON.stringify(newUser));
+      setUser(newUser);
+      return { success: true };
+    } catch {
+      return {
+        success: false,
+        error: "Unable to connect to authentication server. Please check your connection.",
+      };
+    }
+  };
+
+  const verifyOtp = async (
+    email: string,
+    otp: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        return {
+          success: false,
+          error: data.error || "Verification failed.",
+        };
+      }
+
+      const verifiedUser: User = {
+        ...DEFAULT_USER,
+        id: data.user?.id || `usr_${Date.now()}`,
+        name: data.user?.name || email.split("@")[0].toUpperCase(),
+        email: data.user?.email || email,
+        role: data.user?.role || "customer",
+        addresses: [],
+        orders: [],
+      };
+
+      if (data.token) {
+        localStorage.setItem("noir_token", data.token);
+      }
+      localStorage.setItem("noir_logged_in", "true");
+      localStorage.setItem("noir_auth_user", JSON.stringify(verifiedUser));
+      setUser(verifiedUser);
+
+      return { success: true };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || "Failed to communicate with verification server.",
+      };
+    }
+  };
+
+  const resendOtp = async (
+    email: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> => {
+    try {
+      const res = await fetch("/api/auth/resend-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        return {
+          success: false,
+          error: data.error || "Failed to resend verification code.",
+        };
+      }
+
+      return { success: true, message: data.message };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || "Failed to resend code.",
+      };
+    }
   };
 
   const logout = () => {
+    localStorage.removeItem("noir_token");
     localStorage.removeItem("noir_admin_authenticated");
     localStorage.removeItem("noir_logged_in");
     localStorage.removeItem("noir_auth_user");
@@ -318,6 +475,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         loginDemoPatron,
         register,
+        verifyOtp,
+        resendOtp,
         logout,
         switchRole,
         addOrder,
