@@ -188,7 +188,13 @@ export async function executeDirectResendDelivery(params: {
   });
 
   if (error) {
-    console.error(`[EMAIL] Resend delivery failed for ${email}:`, error.message);
+    if (error.message?.includes("You can only send testing emails to your own email address")) {
+      console.warn(
+        `[RESEND NOTICE] Login security alert to ${email} skipped due to Resend sandbox restriction (only account owner receives emails). Verify domain at resend.com/domains to deliver to all users.`
+      );
+    } else {
+      console.error(`[EMAIL] Resend delivery failed for ${email}:`, error.message);
+    }
 
     if (loginActivityId) {
       await connectToDatabase();

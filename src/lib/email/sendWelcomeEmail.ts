@@ -45,7 +45,13 @@ export async function sendWelcomeEmail(params: SendWelcomeEmailParams): Promise<
     });
 
     if (error) {
-      console.error(`[EMAIL] Failed to deliver Welcome email to ${email}:`, error.message);
+      if (error.message?.includes("You can only send testing emails to your own email address")) {
+        console.warn(
+          `[RESEND NOTICE] Welcome Wish email to ${email} skipped due to Resend sandbox restriction (only account owner receives emails). Verify domain at resend.com/domains to deliver to all users.`
+        );
+      } else {
+        console.error(`[EMAIL] Failed to deliver Welcome email to ${email}:`, error.message);
+      }
       return { success: false, error: error.message };
     }
 

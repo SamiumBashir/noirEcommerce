@@ -52,9 +52,12 @@ export async function POST(request: NextRequest) {
       console.error("[AUTH] Resend OTP email failed:", err?.message || err);
     });
 
+    const isDev = process.env.NODE_ENV !== "production";
+
     return NextResponse.json({
       success: true,
       message: `A new 6-digit verification code has been sent to ${user.email}.`,
+      ...(isDev ? { devOtp: otp } : {}),
     });
   } catch (error: any) {
     console.error("[AUTH] Resend OTP error:", error);

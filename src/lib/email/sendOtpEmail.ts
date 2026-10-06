@@ -51,7 +51,19 @@ export async function sendOtpEmail(params: SendOtpEmailParams): Promise<SendOtpE
     });
 
     if (error) {
-      console.error(`[EMAIL] Failed to send OTP email to ${email}:`, error.message);
+      if (error.message?.includes("You can only send testing emails to your own email address")) {
+        console.warn(
+          `\n======================================================\n` +
+          `[RESEND SANDBOX RESTRICTION]\n` +
+          `Resend free test domain (onboarding@resend.dev) can only deliver to the account owner email.\n` +
+          `Recipient attempted: ${email}\n` +
+          `Active 6-digit OTP code: >>> ${otp} <<<\n` +
+          `To deliver live emails to any patron address, add & verify your custom domain at https://resend.com/domains.\n` +
+          `======================================================\n`
+        );
+      } else {
+        console.error(`[EMAIL] Failed to send OTP email to ${email}:`, error.message);
+      }
       // In case of provider error, log code to server console as safety net
       console.log(`[EMAIL FALLBACK] OTP for ${email}: ${otp}`);
       return { success: false, error: error.message };

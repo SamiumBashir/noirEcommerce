@@ -56,7 +56,7 @@ async function runTestSuite() {
       html.includes("Alexander Vance") &&
       html.includes("103.205.180.25") &&
       html.includes("Dhaka, Bangladesh") &&
-      html.includes("K-WALID") &&
+      html.includes("NOIR ATELIER") &&
       text.includes("New Login Detected"),
     "Renders cross-client HTML and plain text with correct security details"
   );

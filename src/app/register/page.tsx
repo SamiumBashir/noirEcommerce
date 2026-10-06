@@ -53,7 +53,12 @@ function RegisterForm() {
     if (result?.requiresOtp) {
       setStep("otp");
       setResendCooldown(60);
-      setOtpSuccessMessage(`A 6-digit code has been dispatched to ${email}.`);
+      if (result.devOtp) {
+        setOtp(result.devOtp);
+        setOtpSuccessMessage(`A 6-digit code has been dispatched. (Testing code: ${result.devOtp})`);
+      } else {
+        setOtpSuccessMessage(`A 6-digit code has been dispatched to ${email}.`);
+      }
       return;
     }
 
@@ -91,7 +96,12 @@ function RegisterForm() {
     setOtpError("");
     const res = await resendOtp(email);
     if (res.success) {
-      setOtpSuccessMessage("A fresh verification code has been dispatched.");
+      if (res.devOtp) {
+        setOtp(res.devOtp);
+        setOtpSuccessMessage(`A fresh verification code has been dispatched. (Testing code: ${res.devOtp})`);
+      } else {
+        setOtpSuccessMessage("A fresh verification code has been dispatched.");
+      }
       setResendCooldown(60);
     } else {
       setOtpError(res.error || "Failed to resend code.");

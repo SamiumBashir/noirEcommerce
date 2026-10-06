@@ -80,6 +80,8 @@ export async function POST(request: NextRequest) {
       console.error("[AUTH] Failed to trigger OTP verification email:", err?.message || err);
     });
 
+    const isDev = process.env.NODE_ENV !== "production";
+
     return NextResponse.json(
       {
         success: true,
@@ -87,6 +89,7 @@ export async function POST(request: NextRequest) {
         email: normalizedEmail,
         name: trimmedName,
         message: `A 6-digit verification code has been sent to ${normalizedEmail}. Please verify to activate your account.`,
+        ...(isDev ? { devOtp: otp } : {}),
       },
       { status: 200 }
     );
