@@ -11,6 +11,8 @@ export interface IUser {
   isVerified: boolean;
   verificationOtp?: string;
   verificationOtpExpires?: Date;
+  deactivatedAt?: Date;
+  deactivationReason?: string;
   lastLoginAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -68,6 +70,14 @@ const UserSchema = new Schema<IUserDocument>(
     },
     lastLoginAt: {
       type: Date,
+    },
+    deactivatedAt: {
+      type: Date,
+    },
+    deactivationReason: {
+      type: String,
+      trim: true,
+      maxlength: 300,
     },
   },
   {

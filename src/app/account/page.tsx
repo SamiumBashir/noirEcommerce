@@ -14,6 +14,10 @@ import {
   ShieldAlert,
   Check,
   Plus,
+  AlertTriangle,
+  X,
+  Lock,
+  Loader2,
 } from "lucide-react";
 import { useAuth, Address } from "@/lib/context/AuthContext";
 import { useWishlist } from "@/lib/context/WishlistContext";
@@ -23,7 +27,7 @@ type TabType = "orders" | "addresses" | "wishlist" | "profile";
 
 export default function AccountPage() {
   const router = useRouter();
-  const { user, logout, updateAddress } = useAuth();
+  const { user, logout, updateAddress, deactivateAccount } = useAuth();
   const { wishlistItems } = useWishlist();
   const [activeTab, setActiveTab] = useState<TabType>("orders");
 
@@ -33,6 +37,14 @@ export default function AccountPage() {
   const [newCity, setNewCity] = useState("");
   const [newState, setNewState] = useState("");
   const [newPostal, setNewPostal] = useState("");
+
+  // Account deactivation state
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [deactivatePassword, setDeactivatePassword] = useState("");
+  const [deactivateReason, setDeactivateReason] = useState("");
+  const [deactivateLoading, setDeactivateLoading] = useState(false);
+  const [deactivateError, setDeactivateError] = useState("");
+  const [deactivateSuccess, setDeactivateSuccess] = useState(false);
 
   if (!user) {
     return (
@@ -71,6 +83,29 @@ export default function AccountPage() {
       setNewState("");
       setNewPostal("");
     }
+  };
+
+  const handleDeactivate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!deactivatePassword) {
+      setDeactivateError("Current password is required to confirm deactivation.");
+      return;
+    }
+    setDeactivateLoading(true);
+    setDeactivateError("");
+
+    const result = await deactivateAccount(deactivatePassword, deactivateReason);
+    setDeactivateLoading(false);
+
+    if (!result.success) {
+      setDeactivateError(result.error || "Failed to deactivate account.");
+      return;
+    }
+
+    setDeactivateSuccess(true);
+    setTimeout(() => {
+      router.push("/login?deactivated=true");
+    }, 2200);
   };
 
   return (
@@ -455,11 +490,173 @@ export default function AccountPage() {
                     <p className="text-xs text-[#111111] mt-1">Two-Factor Authentication Active</p>
                   </div>
                 </div>
+
+                {/* Danger Zone: Account Deactivation */}
+                <div className="bg-white border border-red-200 p-6 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2 text-red-700">
+                        <AlertTriangle className="w-4 h-4 shrink-0" />
+                        <h3 className="text-xs uppercase tracking-widest font-semibold">
+                          Deactivate Atelier Membership
+                        </h3>
+                      </div>
+                      <p className="text-xs text-[#6B6B6B] max-w-xl leading-relaxed">
+                        Deactivating will immediately terminate your session and suspend patron privileges. Your previous order receipts and warranty history will remain securely archived, but you will no longer be able to log in unless concierge reactivates your account.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeactivatePassword("");
+                        setDeactivateReason("");
+                        setDeactivateError("");
+                        setDeactivateSuccess(false);
+                        setShowDeactivateModal(true);
+                      }}
+                      className="shrink-0 px-4 py-2.5 border border-red-300 text-red-700 hover:bg-red-600 hover:text-white transition-colors text-xs uppercase tracking-widest font-medium"
+                    >
+                      Deactivate Account
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Account Deactivation Modal */}
+      {showDeactivateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#F5F3EF] border border-[#D8D5CF] w-full max-w-md p-6 sm:p-8 space-y-5 shadow-2xl relative">
+            {!deactivateSuccess ? (
+              <>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center text-red-700 shrink-0">
+                      <AlertTriangle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-editorial text-xl uppercase tracking-tight text-[#111111]">
+                        Deactivate Membership
+                      </h3>
+                      <p className="text-[10px] text-[#6B6B6B] uppercase tracking-wider font-mono">
+                        NOIR Private Patron Access
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeactivateModal(false)}
+                    disabled={deactivateLoading}
+                    className="text-[#6B6B6B] hover:text-[#111111] p-1 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <p className="text-xs text-[#6B6B6B] leading-relaxed">
+                  You are about to deactivate your account ({user.email}). Please enter your current password to authorize this action. An official notice will be dispatched to your email.
+                </p>
+
+                {deactivateError && (
+                  <div className="p-3 bg-red-50 border border-red-200 text-xs text-red-800 rounded-sm flex items-start gap-2">
+                    <span className="font-semibold">&#9888;</span>
+                    <span>{deactivateError}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleDeactivate} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest text-[#6B6B6B] block">
+                      Confirm Account Password <span className="text-red-600">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="password"
+                        required
+                        value={deactivatePassword}
+                        onChange={(e) => setDeactivatePassword(e.target.value)}
+                        placeholder="Current password"
+                        disabled={deactivateLoading}
+                        className="w-full bg-white border border-[#D8D5CF] pl-9 pr-3.5 py-2.5 text-xs text-[#111111] focus:outline-none focus:border-[#111111]"
+                      />
+                      <Lock className="w-3.5 h-3.5 text-[#6B6B6B] absolute left-3 top-3 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-widest text-[#6B6B6B] block">
+                      Reason for Departure (Optional)
+                    </label>
+                    <select
+                      value={deactivateReason}
+                      onChange={(e) => setDeactivateReason(e.target.value)}
+                      disabled={deactivateLoading}
+                      className="w-full bg-white border border-[#D8D5CF] px-3.5 py-2.5 text-xs text-[#111111] focus:outline-none focus:border-[#111111]"
+                    >
+                      <option value="">Select a reason...</option>
+                      <option value="Taking a temporary break">Taking a temporary break</option>
+                      <option value="Privacy concerns">Privacy & security concerns</option>
+                      <option value="Too many emails or notifications">Too many communications</option>
+                      <option value="Created another account">Created another atelier account</option>
+                      <option value="Dissatisfied with boutique services">Dissatisfied with boutique services</option>
+                      <option value="Other / Personal preference">Other personal reason</option>
+                    </select>
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowDeactivateModal(false)}
+                      disabled={deactivateLoading}
+                      className="flex-1 py-2.5 border border-[#D8D5CF] text-xs uppercase tracking-wider text-[#6B6B6B] hover:text-[#111111] hover:border-[#111111] transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={deactivateLoading || !deactivatePassword}
+                      className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs uppercase tracking-wider font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      {deactivateLoading ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Deactivating...</span>
+                        </>
+                      ) : (
+                        <span>Confirm Deactivation</span>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </>
+            ) : (
+              <div className="py-6 text-center space-y-4">
+                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
+                  <Check className="w-6 h-6" />
+                </div>
+                <h3 className="font-editorial text-2xl uppercase tracking-tight text-[#111111]">
+                  Account Deactivated
+                </h3>
+                <p className="text-xs text-[#6B6B6B] max-w-sm mx-auto leading-relaxed">
+                  Your NOIR Atelier membership has been deactivated. An official confirmation email has been dispatched to your address.
+                </p>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => router.push("/login?deactivated=true")}
+                    className="px-6 py-2.5 bg-[#111111] text-[#F5F3EF] text-xs uppercase tracking-widest font-medium"
+                  >
+                    Return to Sign In
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -10,6 +10,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTarget = searchParams.get("redirect") || "/account";
+  const isDeactivated = searchParams.get("deactivated") === "true";
 
   const { login, loginDemoPatron } = useAuth();
   const [email, setEmail] = useState("");
@@ -93,6 +94,15 @@ function LoginForm() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
+          {isDeactivated && (
+            <div className="p-3 bg-neutral-900 text-[#F5F3EF] border border-[#111111] text-xs rounded-sm flex items-start gap-2.5">
+              <span className="text-emerald-400 font-bold">&#10003;</span>
+              <span className="leading-relaxed">
+                Your NOIR Atelier account has been deactivated. An official confirmation email has been dispatched to your inbox.
+              </span>
+            </div>
+          )}
+
           {errorMessage && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs rounded-sm flex items-start gap-2">
               <span className="font-semibold">&#9888;</span>

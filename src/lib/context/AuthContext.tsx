@@ -50,6 +50,7 @@ interface AuthContextType {
   verifyOtp: (email: string, otp: string) => Promise<{ success: boolean; error?: string }>;
   resendOtp: (email: string) => Promise<{ success: boolean; message?: string; devOtp?: string; emailSent?: boolean; emailError?: string; error?: string }>;
   logout: () => void;
+  deactivateAccount: (password: string, reason?: string) => Promise<{ success: boolean; error?: string }>;
   switchRole: (role: "admin" | "customer") => void;
   addOrder: (order: Omit<UserOrder, "id" | "date" | "status" | "trackingNumber">) => UserOrder;
   updateAddress: (address: Address) => void;
@@ -431,6 +432,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   };
 
+  const deactivateAccount = async (
+    password: string,
+    reason?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const token = localStorage.getItem("noir_token");
+      const res = await fetch("/api/auth/deactivate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          password,
+          reason,
+          email: user?.email,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return {
+          success: false,
+          error: data.error || "Failed to deactivate account.",
+        };
+      }
+
+      // Deactivation succeeded: perform full logout
+      logout();
+      return { success: true };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || "Connection error during account deactivation.",
+      };
+    }
+  };
+
   const switchRole = (role: "admin" | "customer") => {
     if (role === "admin") {
       localStorage.setItem("noir_admin_authenticated", "true");
@@ -487,6 +526,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         verifyOtp,
         resendOtp,
         logout,
+        deactivateAccount,
         switchRole,
         addOrder,
         updateAddress,
