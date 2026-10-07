@@ -8,17 +8,31 @@ import nodemailer, { Transporter } from "nodemailer";
  * - Built-in connection and socket timeouts to prevent hung requests
  */
 export function getMailTransporter(): Transporter | null {
-  const user = (process.env.SMTP_USER || process.env.GMAIL_USER)?.trim();
-  let pass = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD)?.trim();
+  const user = (
+    process.env.SMTP_USER ||
+    process.env.GMAIL_USER ||
+    process.env.MAIL_USER ||
+    process.env.EMAIL_USER
+  )?.trim();
+
+  let pass = (
+    process.env.SMTP_PASS ||
+    process.env.SMTP_PASSWORD ||
+    process.env.GMAIL_APP_PASSWORD ||
+    process.env.GMAIL_PASSWORD ||
+    process.env.GMAIL_PASS ||
+    process.env.MAIL_PASS ||
+    process.env.MAIL_PASSWORD
+  )?.trim();
 
   if (!user || !pass || pass === "your_gmail_app_password_here") {
     return null;
   }
 
-  // Sanitize: strip spaces, surrounding quotes, or accidental "SMTP_PASS=" prefix
+  // Sanitize: strip spaces, surrounding quotes, or accidental "SMTP_PASS=" / "SMTP_PASSWORD=" prefix
   pass = pass
     .replace(/\s+/g, "")
-    .replace(/^SMTP_PASS\s*=\s*/i, "")
+    .replace(/^(SMTP_PASS|SMTP_PASSWORD|GMAIL_APP_PASSWORD)\s*=\s*/i, "")
     .replace(/^["']|["']$/g, "");
 
   const customHost = process.env.SMTP_HOST?.trim();
@@ -58,7 +72,12 @@ export function getMailTransporter(): Transporter | null {
  */
 export function getEmailFrom(): string {
   const customFrom = process.env.EMAIL_FROM?.trim();
-  const user = (process.env.SMTP_USER || process.env.GMAIL_USER)?.trim();
+  const user = (
+    process.env.SMTP_USER ||
+    process.env.GMAIL_USER ||
+    process.env.MAIL_USER ||
+    process.env.EMAIL_USER
+  )?.trim();
 
   if (customFrom) {
     return customFrom;

@@ -8,8 +8,21 @@ export const dynamic = "force-dynamic";
  * Access via: https://your-site.vercel.app/api/auth/check-smtp
  */
 export async function GET() {
-  const user = (process.env.SMTP_USER || process.env.GMAIL_USER)?.trim();
-  const pass = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD)?.trim();
+  const user = (
+    process.env.SMTP_USER ||
+    process.env.GMAIL_USER ||
+    process.env.MAIL_USER ||
+    process.env.EMAIL_USER
+  )?.trim();
+  const pass = (
+    process.env.SMTP_PASS ||
+    process.env.SMTP_PASSWORD ||
+    process.env.GMAIL_APP_PASSWORD ||
+    process.env.GMAIL_PASSWORD ||
+    process.env.GMAIL_PASS ||
+    process.env.MAIL_PASS ||
+    process.env.MAIL_PASSWORD
+  )?.trim();
   const host = process.env.SMTP_HOST?.trim() || "smtp.gmail.com";
   const port = Number(process.env.SMTP_PORT) || 465;
   const from = getEmailFrom();
