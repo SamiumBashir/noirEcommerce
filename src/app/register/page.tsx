@@ -53,8 +53,14 @@ function RegisterForm() {
     if (result?.requiresOtp) {
       if (typeof window !== "undefined") {
         sessionStorage.setItem("noir_verification_email", email);
+        if (result.emailError) {
+          sessionStorage.setItem("noir_verification_email_error", result.emailError);
+        } else {
+          sessionStorage.removeItem("noir_verification_email_error");
+        }
       }
-      router.push(`/verify-email?email=${encodeURIComponent(email)}&redirect=${encodeURIComponent(redirectTarget)}`);
+      const errParam = result.emailError ? `&emailError=${encodeURIComponent(result.emailError)}` : "";
+      router.push(`/verify-email?email=${encodeURIComponent(email)}&redirect=${encodeURIComponent(redirectTarget)}${errParam}`);
       return;
     }
 

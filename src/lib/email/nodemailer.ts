@@ -2,9 +2,10 @@ import nodemailer, { Transporter } from "nodemailer";
 
 /**
  * Returns a configured Nodemailer Transporter instance for Gmail SMTP.
- * Fully optimized for serverless environments (Vercel Functions / AWS Lambda):
+ * Fully optimized for serverless environments (Vercel Functions / AWS Lambda / Local):
+ * - Direct SSL on Port 465 for reliable connection from cloud hosting datacenters
  * - No socket pooling to avoid stale/frozen TCP sockets after container freeze
- * - Automatic string sanitization to protect against quotes or accidental variable names
+ * - Automatic string sanitization to protect against quotes, spaces, or accidental variable names
  * - Built-in connection and socket timeouts to prevent hung requests
  */
 export function getMailTransporter(): Transporter | null {
@@ -12,7 +13,9 @@ export function getMailTransporter(): Transporter | null {
     process.env.SMTP_USER ||
     process.env.GMAIL_USER ||
     process.env.MAIL_USER ||
-    process.env.EMAIL_USER
+    process.env.EMAIL_USER ||
+    process.env.EMAIL ||
+    process.env.USER_EMAIL
   )?.trim();
 
   let pass = (
@@ -22,47 +25,41 @@ export function getMailTransporter(): Transporter | null {
     process.env.GMAIL_PASSWORD ||
     process.env.GMAIL_PASS ||
     process.env.MAIL_PASS ||
-    process.env.MAIL_PASSWORD
+    process.env.MAIL_PASSWORD ||
+    process.env.EMAIL_PASS ||
+    process.env.EMAIL_PASSWORD ||
+    process.env.APP_PASSWORD
   )?.trim();
 
-  if (!user || !pass || pass === "your_gmail_app_password_here") {
+  if (!user || !pass || pass === "your_gmail_app_password_here" || pass === "your_16_char_gmail_app_password") {
     return null;
   }
 
-  // Sanitize: strip spaces, surrounding quotes, or accidental "SMTP_PASS=" / "SMTP_PASSWORD=" prefix
+  // Sanitize: strip spaces (e.g. "abcd efgh ijkl mnop" -> "abcdefghijklmnop"), surrounding quotes, or accidental variable assignment prefix
   pass = pass
     .replace(/\s+/g, "")
-    .replace(/^(SMTP_PASS|SMTP_PASSWORD|GMAIL_APP_PASSWORD)\s*=\s*/i, "")
+    .replace(/^(SMTP_PASS|SMTP_PASSWORD|GMAIL_APP_PASSWORD|EMAIL_PASS|EMAIL_PASSWORD|APP_PASSWORD)\s*=\s*/i, "")
     .replace(/^["']|["']$/g, "");
 
-  const customHost = process.env.SMTP_HOST?.trim();
-  const customPort = Number(process.env.SMTP_PORT);
+  const customHost = process.env.SMTP_HOST?.trim() || "smtp.gmail.com";
+  const customPort = Number(process.env.SMTP_PORT) || 465;
 
-  // If a custom non-gmail host is configured, use standard SMTP transport
-  if (customHost && customHost !== "smtp.gmail.com") {
-    return nodemailer.createTransport({
-      host: customHost,
-      port: customPort || 587,
-      secure: customPort === 465,
-      auth: { user, pass },
-      pool: false, // Must be false on serverless
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
-    });
-  }
-
-  // Standard Gmail configuration optimized for Vercel Serverless
   return nodemailer.createTransport({
-    service: "gmail",
+    host: customHost,
+    port: customPort,
+    secure: customPort === 465, // true for 465, false for other ports
     auth: {
       user,
       pass,
     },
+    tls: {
+      rejectUnauthorized: true,
+      minVersion: "TLSv1.2",
+    },
     pool: false, // Fresh socket per serverless invocation
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 20000,
   });
 }
 
@@ -76,7 +73,9 @@ export function getEmailFrom(): string {
     process.env.SMTP_USER ||
     process.env.GMAIL_USER ||
     process.env.MAIL_USER ||
-    process.env.EMAIL_USER
+    process.env.EMAIL_USER ||
+    process.env.EMAIL ||
+    process.env.USER_EMAIL
   )?.trim();
 
   if (customFrom) {

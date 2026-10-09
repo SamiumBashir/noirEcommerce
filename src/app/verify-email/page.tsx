@@ -22,6 +22,7 @@ function VerifyEmailContent() {
   const { verifyOtp, resendOtp } = useAuth();
 
   const queryEmail = searchParams.get("email") || "";
+  const queryEmailError = searchParams.get("emailError") || "";
   const redirectTarget = searchParams.get("redirect") || "/account";
 
   const [email, setEmail] = useState("");
@@ -30,12 +31,13 @@ function VerifyEmailContent() {
   const [resendLoading, setResendLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [dispatchNotice, setDispatchNotice] = useState("");
   const [isVerified, setIsVerified] = useState(false);
   const [cooldown, setCooldown] = useState(60);
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Initialize email from query param or safe session storage
+  // Initialize email and dispatchNotice from query param or safe session storage
   useEffect(() => {
     let resolvedEmail = queryEmail;
     if (!resolvedEmail && typeof window !== "undefined") {
@@ -47,7 +49,15 @@ function VerifyEmailContent() {
         sessionStorage.setItem("noir_verification_email", resolvedEmail);
       }
     }
-  }, [queryEmail]);
+
+    let resolvedError = queryEmailError;
+    if (!resolvedError && typeof window !== "undefined") {
+      resolvedError = sessionStorage.getItem("noir_verification_email_error") || "";
+    }
+    if (resolvedError) {
+      setDispatchNotice(resolvedError);
+    }
+  }, [queryEmail, queryEmailError]);
 
   // Countdown timer for resend button
   useEffect(() => {
@@ -166,8 +176,14 @@ function VerifyEmailContent() {
     setResendLoading(false);
 
     if (result.success) {
-      setSuccessMessage("A fresh verification code has been dispatched to your email address.");
-      setCooldown(60);
+      if (result.emailError) {
+        setDispatchNotice(result.emailError);
+        setErrorMessage(`Fresh code generated, but email delivery encountered: ${result.emailError}`);
+      } else {
+        setDispatchNotice("");
+        setSuccessMessage("A fresh verification code has been dispatched to your email address.");
+      }
+      setCooldown(result.retryAfter || 60);
       setDigits(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
     } else {
@@ -217,6 +233,21 @@ function VerifyEmailContent() {
             </div>
 
             {/* ALERTS */}
+            {dispatchNotice && (
+              <div
+                role="alert"
+                className="p-3.5 bg-amber-50 border border-amber-300 text-amber-900 text-xs rounded-sm space-y-1.5"
+              >
+                <div className="font-semibold flex items-center gap-1.5">
+                  <span>⚠️ Email Delivery Notice:</span>
+                  <span className="font-mono text-[11px] bg-amber-100 px-1.5 py-0.5 rounded">{dispatchNotice}</span>
+                </div>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  If this is on your deployed website (Vercel), please ensure your 16-character Google App Password is added in <strong>Vercel Project Settings &gt; Environment Variables &gt; SMTP_PASS</strong> and redeploy.
+                </p>
+              </div>
+            )}
+
             {errorMessage && (
               <div
                 role="alert"
