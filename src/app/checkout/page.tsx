@@ -265,7 +265,7 @@ export default function CheckoutPage() {
               onClick={() => loginDemoPatron()}
               className="w-full py-2.5 bg-white border border-[#D8D5CF] text-[#111111] hover:bg-[#111111] hover:text-[#F5F3EF] text-[11px] uppercase tracking-wider font-mono transition-colors"
             >
-              // 1-Click Patron (Alexander Vance)
+              // 1-Click Continue as Guest
             </button>
           </div>
         </div>

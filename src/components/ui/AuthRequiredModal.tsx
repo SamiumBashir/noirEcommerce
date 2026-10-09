@@ -89,7 +89,7 @@ export function AuthRequiredModal({
               <div className="flex items-center justify-between text-[10px] font-mono uppercase text-[#6B6B6B]">
                 <span className="flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-[#111111]" />
-                  INSTANT ATELIER PATRON
+                  INSTANT GUEST ACCESS
                 </span>
                 <span className="text-emerald-700 font-semibold">1-CLICK</span>
               </div>
@@ -101,7 +101,7 @@ export function AuthRequiredModal({
               >
                 <UserCheck className="w-3.5 h-3.5" />
                 <span>
-                  {loadingDemo ? "Authenticating..." : "Continue as Alexander Vance"}
+                  {loadingDemo ? "Authenticating..." : "Continue as Guest"}
                 </span>
               </button>
             </div>

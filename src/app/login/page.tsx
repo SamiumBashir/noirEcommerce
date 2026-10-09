@@ -88,7 +88,7 @@ function LoginForm() {
             disabled={loading}
             className="w-full py-2.5 bg-[#111111] text-[#F5F3EF] hover:bg-black text-xs uppercase tracking-wider transition-colors font-medium flex items-center justify-center gap-2"
           >
-            <span>Demo Patron (Alexander Vance)</span>
+            <span>Continue as Guest</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
