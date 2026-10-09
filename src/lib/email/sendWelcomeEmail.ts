@@ -13,15 +13,18 @@ export interface SendWelcomeEmailResult {
 }
 
 /**
- * Sends an official Welcome Wish email from NOIR Atelier upon successful account creation & verification.
- * Dispatched via Nodemailer (Gmail SMTP). Completely asynchronous & non-blocking.
+ * Sends the official Welcome Email from NOIR Atelier upon successful OTP verification.
+ * Follows strict Phase 7 rules:
+ * - Subject: "Welcome to NOIR — Your Journey Begins"
+ * - Dispatched only after email verification is committed in database.
+ * - Records provider acceptance status.
  */
 export async function sendWelcomeEmail(params: SendWelcomeEmailParams): Promise<SendWelcomeEmailResult> {
   const { email, name } = params;
   const transporter = getMailTransporter();
 
   if (!transporter) {
-    console.log(`[EMAIL DEV MODE] Welcome Wish email simulated for: ${email} (${name})`);
+    console.log(`[EMAIL NOTICE] SMTP not configured. Welcome email simulated for ${email} (${name}).`);
     return {
       success: true,
       error: "DEV_MODE_LOGGED",
@@ -39,15 +42,15 @@ export async function sendWelcomeEmail(params: SendWelcomeEmailParams): Promise<
     const info = await transporter.sendMail({
       from,
       to: email,
-      subject: `Welcome to NOIR Atelier, ${name}`,
+      subject: "Welcome to NOIR — Your Journey Begins",
       html,
       text,
     });
 
-    console.log(`[EMAIL] Welcome Wish email successfully delivered to ${email} (Message ID: ${info.messageId})`);
+    console.log(`[EMAIL] Welcome email successfully accepted by SMTP for ${email} (Message ID: ${info.messageId})`);
     return { success: true, id: info.messageId };
   } catch (error: any) {
-    console.error(`[EMAIL] Unexpected error delivering Welcome email to ${email}:`, error?.message || error);
+    console.error(`[EMAIL ERROR] Failed to send Welcome email to ${email}:`, error?.message || error);
     return { success: false, error: error?.message || "Welcome email delivery failed" };
   }
 }

@@ -15,8 +15,10 @@ export interface SendOtpEmailResult {
 }
 
 /**
- * Sends a 6-digit OTP verification email via Nodemailer (Gmail SMTP).
- * Returns clear diagnostic results for serverless execution.
+ * Sends a 6-digit OTP verification email via configured SMTP transport.
+ * Follows NOIR luxury aesthetic and security rules:
+ * - Subject: "Verify your email address | NOIR" (Never puts OTP in subject or URLs)
+ * - Returns diagnostic results without throwing unhandled exceptions.
  */
 export async function sendOtpEmail(params: SendOtpEmailParams): Promise<SendOtpEmailResult> {
   const { email, name, otp, expiresInMinutes = 10 } = params;
@@ -24,12 +26,12 @@ export async function sendOtpEmail(params: SendOtpEmailParams): Promise<SendOtpE
 
   if (!transporter) {
     console.warn(
-      `\n[EMAIL WARNING] SMTP_USER or SMTP_PASS is missing in environment variables. ` +
-      `Cannot send email to ${email}. Active OTP: ${otp}\n`
+      `\n[EMAIL NOTICE] SMTP is not configured in environment variables. ` +
+      `Cannot dispatch verification email to ${email}.\n`
     );
     return {
       success: false,
-      error: "SMTP_CREDENTIALS_NOT_CONFIGURED",
+      error: "SMTP_NOT_CONFIGURED",
     };
   }
 
@@ -42,19 +44,19 @@ export async function sendOtpEmail(params: SendOtpEmailParams): Promise<SendOtpE
 
     const from = getEmailFrom();
 
+    // Subject must NEVER leak the OTP (Phase 4 requirement)
     const info = await transporter.sendMail({
       from,
       to: email,
-      subject: `Your NOIR Atelier Verification Code: ${otp}`,
+      subject: "Verify your email address | NOIR",
       html,
       text,
     });
 
-    console.log(`[EMAIL] OTP verification email sent via Gmail to ${email} (Message ID: ${info.messageId})`);
+    console.log(`[EMAIL] OTP verification email dispatched to ${email} (Message ID: ${info.messageId})`);
     return { success: true, id: info.messageId };
   } catch (error: any) {
-    console.error(`[EMAIL ERROR] Failed to send OTP to ${email} via Gmail SMTP:`, error?.message || error);
-    console.log(`[EMAIL FALLBACK] OTP for ${email}: ${otp}`);
+    console.error(`[EMAIL ERROR] Failed to send OTP to ${email}:`, error?.message || error);
     return { success: false, error: error?.message || "OTP delivery failed" };
   }
 }

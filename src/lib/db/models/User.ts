@@ -9,6 +9,12 @@ export interface IUser {
   isActive: boolean;
   isBlocked: boolean;
   isVerified: boolean;
+  isEmailVerified?: boolean;
+  emailVerificationOtpHash?: string;
+  emailVerificationExpiresAt?: Date;
+  emailVerificationAttempts?: number;
+  emailVerificationLastSentAt?: Date;
+  welcomeEmailSentAt?: Date;
   verificationOtp?: string;
   verificationOtpExpires?: Date;
   deactivatedAt?: Date;
@@ -62,8 +68,33 @@ const UserSchema = new Schema<IUserDocument>(
       default: false,
       index: true,
     },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    emailVerificationOtpHash: {
+      type: String,
+      select: false, // Hidden by default from queries for extra security
+    },
+    emailVerificationExpiresAt: {
+      type: Date,
+      index: true,
+    },
+    emailVerificationAttempts: {
+      type: Number,
+      default: 0,
+    },
+    emailVerificationLastSentAt: {
+      type: Date,
+    },
+    welcomeEmailSentAt: {
+      type: Date,
+      index: true,
+    },
     verificationOtp: {
       type: String,
+      select: false,
     },
     verificationOtpExpires: {
       type: Date,
@@ -84,6 +115,17 @@ const UserSchema = new Schema<IUserDocument>(
     timestamps: true,
   }
 );
+
+// Synchronize isVerified and isEmailVerified before save
+UserSchema.pre("save", function (next) {
+  if (this.isVerified && this.isEmailVerified === undefined) {
+    this.isEmailVerified = true;
+  }
+  if (this.isEmailVerified && !this.isVerified) {
+    this.isVerified = true;
+  }
+  next();
+});
 
 // Method to verify candidate password
 UserSchema.methods.comparePassword = async function (candidatePassword: string): Promise<boolean> {

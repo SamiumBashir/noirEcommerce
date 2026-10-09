@@ -6,29 +6,32 @@ export interface WelcomeEmailParams {
 }
 
 /**
- * Renders an ultra-luxurious Welcome Wish email from NOIR Atelier.
+ * Renders an ultra-luxurious dark editorial Welcome Email from NOIR Atelier.
  */
 export function renderWelcomeEmail(params: WelcomeEmailParams): { html: string; text: string } {
   const currentYear = new Date().getFullYear();
   const safeName = escapeHtml(params.userName || "Valued Patron");
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://noir-fash.vercel.app";
+  const siteUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    "https://noir-fash.vercel.app";
   const shopUrl = `${siteUrl}/shop`;
   const accountUrl = `${siteUrl}/account`;
 
-  // Plain Text Version
-  const text = `WELCOME TO NOIR ATELIER
+  // Plain Text Version (Required by Phase 7)
+  const text = `WELCOME TO NOIR — YOUR JOURNEY BEGINS
 
 Hello ${safeName},
 
-Your atelier membership is officially authenticated and active.
+Your email address has been successfully verified, and your NOIR Atelier account is now active.
 
 At NOIR, we design for those who move differently — sculpting architectural silhouettes, precision tailoring, and uncompromising materiality for modern movement.
 
-YOUR MEMBERSHIP PRIVILEGES:
-- Archival Releases & Drops: Private access to seasonal capsules and limited batch releases.
-- Bespoke Measurements: Maintain your personal tailoring preferences and sizing notes.
-- Complimentary Global Courier: Tracked express courier delivery with signature service.
-- Dedicated Concierge: Seamless returns and personal stylist advisory.
+YOUR ATELIER PRIVILEGES:
+- Archival Previews & Drops: Private access to seasonal lookbooks and numbered capsules.
+- Bespoke Measurements: Store personal tailoring notes and silhouette preferences.
+- Complimentary Global Courier: Tracked express delivery with carbon-neutral packaging.
+- Dedicated Concierge: Seamless returns and styling advisory.
 
 Explore our collection: ${shopUrl}
 Access your client profile: ${accountUrl}
@@ -38,54 +41,54 @@ The NOIR Atelier Curators
 
 © ${currentYear} NOIR ATELIER. All rights reserved.`;
 
-  // Responsive, Table-Based HTML Version with Inline CSS
+  // Responsive HTML Version with Consistent Luxury Dark Aesthetics
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome to NOIR Atelier</title>
+  <title>Welcome to NOIR — Your Journey Begins</title>
   <!--[if mso]>
   <style type="text/css">
-    body, table, td { font-family: Arial, Helvetica, sans-serif !important; }
+    body, table, td { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif !important; }
   </style>
   <![endif]-->
 </head>
-<body style="margin: 0; padding: 0; background-color: #F5F3EF; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #111111; -webkit-font-smoothing: antialiased; line-height: 1.6;">
-  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #F5F3EF; width: 100%;">
+<body style="margin: 0; padding: 0; background-color: #0A0A0A; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #EDEDED; -webkit-font-smoothing: antialiased; line-height: 1.6;">
+  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #0A0A0A; width: 100%;">
     <tr>
-      <td align="center" style="padding: 40px 15px;">
-        <!-- Main Email Container (Max 580px) -->
-        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; background-color: #FFFFFF; border: 1px solid #D8D5CF; border-radius: 4px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);">
+      <td align="center" style="padding: 48px 16px;">
+        <!-- Email Container (Max 580px) -->
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 580px; background-color: #121212; border: 1px solid #262626; border-radius: 4px; overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);">
           
-          <!-- Brand Header -->
+          <!-- Noir Wordmark Header -->
           <tr>
-            <td style="background-color: #111111; padding: 36px 40px; text-align: center;">
-              <span style="font-size: 11px; letter-spacing: 0.35em; color: #A0A0A0; text-transform: uppercase; font-family: monospace; display: block; margin-bottom: 6px;">
+            <td style="background-color: #000000; padding: 38px 40px; text-align: center; border-bottom: 1px solid #222222;">
+              <span style="font-size: 10px; letter-spacing: 0.35em; color: #888888; text-transform: uppercase; font-family: monospace; display: block; margin-bottom: 8px;">
                 MEMBERSHIP INAUGURATION
               </span>
-              <h1 style="margin: 0; font-size: 28px; letter-spacing: 0.22em; color: #F5F3EF; font-weight: 300; text-transform: uppercase;">
-                NOIR ATELIER
+              <h1 style="margin: 0; font-size: 28px; letter-spacing: 0.28em; color: #FFFFFF; font-weight: 300; text-transform: uppercase;">
+                NOIR
               </h1>
             </td>
           </tr>
 
           <!-- Welcome Banner & Message -->
           <tr>
-            <td style="padding: 40px 40px 24px 40px;">
-              <div style="display: inline-block; background-color: #F0EDE6; padding: 6px 14px; border-radius: 20px; font-size: 11px; letter-spacing: 0.15em; font-weight: 600; text-transform: uppercase; color: #111111; margin-bottom: 20px;">
-                &#10022; Account Verified &amp; Active
+            <td style="padding: 38px 40px 24px 40px;">
+              <div style="display: inline-block; border: 1px solid #333333; background-color: #1A1A1A; padding: 5px 12px; border-radius: 2px; font-size: 10px; letter-spacing: 0.2em; font-weight: 500; text-transform: uppercase; color: #CCCCCC; margin-bottom: 22px;">
+                &#10022; Email Verified &amp; Active
               </div>
 
-              <h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 400; color: #111111; letter-spacing: -0.02em;">
+              <h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 400; color: #FFFFFF; letter-spacing: -0.02em;">
                 Welcome to NOIR, ${safeName}.
               </h2>
 
-              <p style="margin: 0 0 18px 0; font-size: 14px; color: #555555; line-height: 1.7;">
+              <p style="margin: 0 0 18px 0; font-size: 14px; color: #B3B3B3; line-height: 1.7;">
                 Your client account is now fully verified. We are honored to welcome you into our atelier community.
               </p>
 
-              <p style="margin: 0 0 24px 0; font-size: 14px; color: #555555; line-height: 1.7;">
+              <p style="margin: 0 0 24px 0; font-size: 14px; color: #B3B3B3; line-height: 1.7;">
                 At <strong>NOIR</strong>, we design for those who move differently — sculpting architectural silhouettes, precision tailoring, and uncompromising materiality engineered for modern movement.
               </p>
             </td>
@@ -93,11 +96,11 @@ The NOIR Atelier Curators
 
           <!-- Member Privileges Card -->
           <tr>
-            <td style="padding: 0 40px 30px 40px;">
-              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #FAFAF7; border: 1px solid #E5E2DC; border-radius: 4px; overflow: hidden;">
+            <td style="padding: 0 40px 32px 40px;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #000000; border: 1px solid #2B2B2B; border-radius: 4px; overflow: hidden;">
                 <tr>
-                  <td style="padding: 16px 20px; background-color: #F0EDE6; border-bottom: 1px solid #E5E2DC;">
-                    <span style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.15em; color: #333333;">
+                  <td style="padding: 14px 20px; background-color: #1A1A1A; border-bottom: 1px solid #2B2B2B;">
+                    <span style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.2em; color: #CCCCCC;">
                       Your Atelier Privileges
                     </span>
                   </td>
@@ -109,45 +112,45 @@ The NOIR Atelier Curators
                       
                       <!-- Privilege 1 -->
                       <tr>
-                        <td width="24" valign="top" style="padding-bottom: 16px; font-size: 14px; color: #111111;">
+                        <td width="24" valign="top" style="padding-bottom: 16px; font-size: 13px; color: #FFFFFF;">
                           &#10022;
                         </td>
                         <td style="padding-bottom: 16px; padding-left: 8px;">
-                          <strong style="font-size: 13px; color: #111111; display: block; margin-bottom: 2px;">Archival Previews &amp; Drops</strong>
-                          <span style="font-size: 12px; color: #666666; line-height: 1.5;">Private invitations to seasonal lookbooks, numbered capsules, and limited edition garments.</span>
+                          <strong style="font-size: 13px; color: #FFFFFF; display: block; margin-bottom: 2px;">Archival Previews &amp; Drops</strong>
+                          <span style="font-size: 12px; color: #888888; line-height: 1.5;">Private invitations to seasonal lookbooks, numbered capsules, and limited edition garments.</span>
                         </td>
                       </tr>
 
                       <!-- Privilege 2 -->
                       <tr>
-                        <td width="24" valign="top" style="padding-bottom: 16px; font-size: 14px; color: #111111;">
+                        <td width="24" valign="top" style="padding-bottom: 16px; font-size: 13px; color: #FFFFFF;">
                           &#10022;
                         </td>
                         <td style="padding-bottom: 16px; padding-left: 8px;">
-                          <strong style="font-size: 13px; color: #111111; display: block; margin-bottom: 2px;">Bespoke Measurement Notes</strong>
-                          <span style="font-size: 12px; color: #666666; line-height: 1.5;">Store personalized silhouette preferences for rapid ordering and accurate atelier fittings.</span>
+                          <strong style="font-size: 13px; color: #FFFFFF; display: block; margin-bottom: 2px;">Bespoke Measurement Notes</strong>
+                          <span style="font-size: 12px; color: #888888; line-height: 1.5;">Store personalized silhouette preferences for rapid ordering and accurate atelier fittings.</span>
                         </td>
                       </tr>
 
                       <!-- Privilege 3 -->
                       <tr>
-                        <td width="24" valign="top" style="padding-bottom: 16px; font-size: 14px; color: #111111;">
+                        <td width="24" valign="top" style="padding-bottom: 16px; font-size: 13px; color: #FFFFFF;">
                           &#10022;
                         </td>
                         <td style="padding-bottom: 16px; padding-left: 8px;">
-                          <strong style="font-size: 13px; color: #111111; display: block; margin-bottom: 2px;">Complimentary Global Courier</strong>
-                          <span style="font-size: 12px; color: #666666; line-height: 1.5;">Tracked, signature-required courier deliveries with carbon-neutral packaging.</span>
+                          <strong style="font-size: 13px; color: #FFFFFF; display: block; margin-bottom: 2px;">Complimentary Global Courier</strong>
+                          <span style="font-size: 12px; color: #888888; line-height: 1.5;">Tracked, signature-required courier deliveries with carbon-neutral packaging.</span>
                         </td>
                       </tr>
 
                       <!-- Privilege 4 -->
                       <tr>
-                        <td width="24" valign="top" style="font-size: 14px; color: #111111;">
+                        <td width="24" valign="top" style="font-size: 13px; color: #FFFFFF;">
                           &#10022;
                         </td>
                         <td style="padding-left: 8px;">
-                          <strong style="font-size: 13px; color: #111111; display: block; margin-bottom: 2px;">Dedicated Client Concierge</strong>
-                          <span style="font-size: 12px; color: #666666; line-height: 1.5;">Hassle-free 30-day returns and real-time support from our styling curators.</span>
+                          <strong style="font-size: 13px; color: #FFFFFF; display: block; margin-bottom: 2px;">Dedicated Client Concierge</strong>
+                          <span style="font-size: 12px; color: #888888; line-height: 1.5;">Hassle-free 30-day returns and real-time support from our styling curators.</span>
                         </td>
                       </tr>
 
@@ -160,8 +163,8 @@ The NOIR Atelier Curators
 
           <!-- Call To Action Button -->
           <tr>
-            <td style="padding: 0 40px 35px 40px; text-align: center;">
-              <a href="${shopUrl}" style="display: inline-block; background-color: #111111; color: #F5F3EF; text-decoration: none; padding: 14px 32px; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 600; border-radius: 2px;">
+            <td style="padding: 0 40px 36px 40px; text-align: center;">
+              <a href="${shopUrl}" style="display: inline-block; background-color: #FFFFFF; color: #000000; text-decoration: none; padding: 14px 34px; font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; font-weight: 600; border-radius: 2px;">
                 Explore The Atelier Catalog &rarr;
               </a>
             </td>
@@ -169,22 +172,22 @@ The NOIR Atelier Curators
 
           <!-- Curators Sign-Off -->
           <tr>
-            <td style="padding: 0 40px 35px 40px;">
-              <p style="margin: 0; font-size: 13px; color: #555555; line-height: 1.6;">
+            <td style="padding: 0 40px 32px 40px;">
+              <p style="margin: 0; font-size: 13px; color: #888888; line-height: 1.6;">
                 Warmest regards,<br>
-                <strong style="color: #111111;">The NOIR Atelier Curators</strong>
+                <strong style="color: #FFFFFF;">The NOIR Atelier Curators</strong>
               </p>
             </td>
           </tr>
 
-          <!-- Footer -->
+          <!-- Minimal Footer -->
           <tr>
-            <td style="background-color: #FAFAF7; border-top: 1px solid #EAE8E2; padding: 28px 40px; text-align: center;">
-              <p style="margin: 0 0 8px 0; font-size: 11px; color: #888888; letter-spacing: 0.05em;">
-                You are receiving this welcome note because you created an account at NOIR Atelier.
+            <td style="background-color: #0D0D0D; border-top: 1px solid #1E1E1E; padding: 24px 40px; text-align: center;">
+              <p style="margin: 0 0 6px 0; font-size: 10px; color: #666666; letter-spacing: 0.05em;">
+                You are receiving this notification because you created and verified an account at NOIR Atelier.
               </p>
-              <p style="margin: 0; font-size: 11px; color: #999999; letter-spacing: 0.08em; text-transform: uppercase;">
-                &copy; ${currentYear} NOIR ATELIER. All rights reserved.
+              <p style="margin: 0; font-size: 10px; color: #555555; letter-spacing: 0.1em; text-transform: uppercase;">
+                &copy; ${currentYear} NOIR ATELIER. ALL RIGHTS RESERVED.
               </p>
             </td>
           </tr>

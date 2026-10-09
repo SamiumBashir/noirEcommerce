@@ -88,7 +88,7 @@ If you don't recognize this login, please secure your account immediately by cha
               </span>
               <h1 style="margin: 0; font-size: 26px; letter-spacing: 0.2em; color: #F5F3EF; font-weight: 300; text-transform: uppercase;">
                 NOIR <span style="font-weight: 200; font-size: 16px; color: #888888;">
-                </span>
+              </span>
               </h1>
             </td>
           </tr>

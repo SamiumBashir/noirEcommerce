@@ -51,17 +51,10 @@ function RegisterForm() {
     }
 
     if (result?.requiresOtp) {
-      setStep("otp");
-      setResendCooldown(60);
-      if (result.emailError) {
-        setOtpError(`Server Email Notice: ${result.emailError}${result.devOtp ? ` — Fallback Code: ${result.devOtp}` : ""}`);
-        if (result.devOtp) setOtp(result.devOtp);
-      } else if (result.devOtp && process.env.NODE_ENV !== "production") {
-        setOtp(result.devOtp);
-        setOtpSuccessMessage(`A 6-digit code has been dispatched. (Testing code: ${result.devOtp})`);
-      } else {
-        setOtpSuccessMessage(`A 6-digit code has been dispatched to ${email}.`);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("noir_verification_email", email);
       }
+      router.push(`/verify-email?email=${encodeURIComponent(email)}&redirect=${encodeURIComponent(redirectTarget)}`);
       return;
     }
 

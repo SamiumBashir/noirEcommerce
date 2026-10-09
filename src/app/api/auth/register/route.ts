@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { UserModel, hashPassword } from "@/lib/db/models/User";
 import { sendOtpEmail } from "@/lib/email/sendOtpEmail";
+import { generateSecureOtp, hashOtp } from "@/lib/security/otp";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,9 +13,19 @@ export async function POST(request: NextRequest) {
     const normalizedEmail = (email || "").trim().toLowerCase();
     const rawPassword = (password || "").trim();
 
+    // 1. Input Validation
     if (!trimmedName || !normalizedEmail || !rawPassword) {
       return NextResponse.json(
         { success: false, error: "Full name, email address, and password are required." },
+        { status: 400 }
+      );
+    }
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalizedEmail)) {
+      return NextResponse.json(
+        { success: false, error: "Please provide a valid email address." },
         { status: 400 }
       );
     }
@@ -28,10 +39,10 @@ export async function POST(request: NextRequest) {
 
     await connectToDatabase();
 
+    // 2. Existing user check
     const existingUser = await UserModel.findOne({ email: normalizedEmail });
 
-    // If an account exists and is already verified, reject registration
-    if (existingUser && existingUser.isVerified) {
+    if (existingUser && (existingUser.isVerified || existingUser.isEmailVerified)) {
       return NextResponse.json(
         {
           success: false,
@@ -41,22 +52,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate secure 6-digit verification OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // 3. Cryptographically secure 6-digit OTP generation (Uniformly distributed)
+    const rawOtp = generateSecureOtp();
+    const otpHash = hashOtp(rawOtp);
     const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
 
     const hashedPassword = await hashPassword(rawPassword);
     const isFirstUserAdmin = normalizedEmail.includes("admin@");
 
     if (existingUser && !existingUser.isVerified) {
-      // User registered before but hasn't verified yet - update details & issue fresh OTP
+      // User registered earlier but has not yet verified: update credentials and reset OTP challenge
       existingUser.name = trimmedName;
       existingUser.password = hashedPassword;
-      existingUser.verificationOtp = otp;
-      existingUser.verificationOtpExpires = otpExpires;
+      existingUser.emailVerificationOtpHash = otpHash;
+      existingUser.emailVerificationExpiresAt = otpExpires;
+      existingUser.emailVerificationAttempts = 0;
+      existingUser.emailVerificationLastSentAt = new Date();
+      existingUser.verificationOtp = undefined; // Ensure legacy plaintext is scrubbed
       await existingUser.save();
     } else {
-      // Create new unverified user
+      // Create new unverified user record
       await UserModel.create({
         name: trimmedName,
         email: normalizedEmail,
@@ -65,51 +80,48 @@ export async function POST(request: NextRequest) {
         isActive: true,
         isBlocked: false,
         isVerified: false,
-        verificationOtp: otp,
-        verificationOtpExpires: otpExpires,
+        isEmailVerified: false,
+        emailVerificationOtpHash: otpHash,
+        emailVerificationExpiresAt: otpExpires,
+        emailVerificationAttempts: 0,
+        emailVerificationLastSentAt: new Date(),
       });
     }
 
-    // Trigger OTP email dispatch (AWAITED to ensure delivery before Vercel serverless freezes execution)
+    // 4. Dispatch verification email (Awaited to ensure delivery in serverless environment)
     let emailDispatchError: string | null = null;
     try {
       const emailResult = await sendOtpEmail({
         email: normalizedEmail,
         name: trimmedName,
-        otp,
+        otp: rawOtp,
         expiresInMinutes: 10,
       });
       if (!emailResult.success) {
         emailDispatchError = emailResult.error || "Email delivery failed";
-        console.error(`[AUTH] OTP email delivery failed for ${normalizedEmail}:`, emailDispatchError);
       }
     } catch (err: any) {
       emailDispatchError = err?.message || "Unexpected email error";
-      console.error(`[AUTH] Exception during OTP email dispatch:`, err);
     }
 
-    const isDev = process.env.NODE_ENV !== "production";
-    const provideOtpFallback = isDev || Boolean(emailDispatchError);
-
+    // 5. Safe Response: NEVER return raw OTP, hashes, or passwords (Phase 3 requirement)
     return NextResponse.json(
       {
         success: true,
         requiresOtp: true,
         email: normalizedEmail,
-        name: trimmedName,
         message: emailDispatchError
-          ? `Account created. Live email dispatch encountered: ${emailDispatchError}`
-          : `A 6-digit verification code has been sent to ${normalizedEmail}. Please verify to activate your account.`,
+          ? `Account created. Verification email notice: ${emailDispatchError}. You may request a resend.`
+          : `A 6-digit verification code has been dispatched to ${normalizedEmail}. Please verify to activate your account.`,
         emailSent: !emailDispatchError,
-        emailError: emailDispatchError,
-        ...(provideOtpFallback ? { devOtp: otp } : {}),
+        emailError: emailDispatchError || undefined,
       },
-      { status: 200 }
+      { status: 201 }
     );
   } catch (error: any) {
-    console.error("[AUTH] Registration error:", error);
+    console.error("[AUTH] Registration error:", error?.message || error);
     return NextResponse.json(
-      { success: false, error: error.message || "Registration failed. Please try again." },
+      { success: false, error: "Registration failed. Please try again." },
       { status: 500 }
     );
   }

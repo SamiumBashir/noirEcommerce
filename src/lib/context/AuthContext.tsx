@@ -48,7 +48,7 @@ interface AuthContextType {
   loginDemoPatron: () => Promise<void>;
   register: (name: string, email: string, password?: string) => Promise<{ success: boolean; requiresOtp?: boolean; email?: string; devOtp?: string; emailSent?: boolean; emailError?: string; error?: string }>;
   verifyOtp: (email: string, otp: string) => Promise<{ success: boolean; error?: string }>;
-  resendOtp: (email: string) => Promise<{ success: boolean; message?: string; devOtp?: string; emailSent?: boolean; emailError?: string; error?: string }>;
+  resendOtp: (email: string) => Promise<{ success: boolean; message?: string; retryAfter?: number; devOtp?: string; emailSent?: boolean; emailError?: string; error?: string }>;
   logout: () => void;
   deactivateAccount: (password: string, reason?: string) => Promise<{ success: boolean; error?: string }>;
   switchRole: (role: "admin" | "customer") => void;
@@ -157,7 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string,
     password?: string,
     role: "admin" | "customer" = "customer"
-  ): Promise<{ success: boolean; error?: string }> => {
+  ): Promise<{ success: boolean; requiresVerification?: boolean; email?: string; error?: string }> => {
     const isExplicitAdmin = role === "admin" || email.toLowerCase().includes("admin");
 
     try {
@@ -173,6 +173,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!res.ok || !data.success) {
         return {
           success: false,
+          requiresVerification: data.requiresVerification,
+          email: data.email,
           error: data.error || "Authentication failed. Please verify credentials.",
         };
       }
@@ -393,7 +395,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resendOtp = async (
     email: string
-  ): Promise<{ success: boolean; message?: string; devOtp?: string; emailSent?: boolean; emailError?: string; error?: string }> => {
+  ): Promise<{ success: boolean; message?: string; retryAfter?: number; devOtp?: string; emailSent?: boolean; emailError?: string; error?: string }> => {
     try {
       const res = await fetch("/api/auth/resend-otp", {
         method: "POST",
@@ -412,6 +414,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return {
         success: true,
         message: data.message,
+        retryAfter: data.retryAfter,
         devOtp: data.devOtp,
         emailSent: data.emailSent,
         emailError: data.emailError,

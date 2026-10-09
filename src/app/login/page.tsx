@@ -29,6 +29,15 @@ function LoginForm() {
     setLoading(false);
 
     if (result && !result.success) {
+      if (result.requiresVerification) {
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("noir_verification_email", result.email || email);
+        }
+        router.push(
+          `/verify-email?email=${encodeURIComponent(result.email || email)}&redirect=${encodeURIComponent(redirectTarget)}`
+        );
+        return;
+      }
       setErrorMessage(result.error || "Authentication failed. Please verify your credentials.");
       return;
     }
