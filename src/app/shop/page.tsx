@@ -38,10 +38,20 @@ const STANDARD_SIZES = ["XS", "S", "M", "L", "XL", "One Size"];
 const FOOTWEAR_SIZES = ["40", "41", "42", "43", "44", "45"];
 const TAILORING_SIZES = ["28", "30", "32", "34", "36"];
 
+const FEATURED_CAPSULE_IDS = [
+  "noir-motion-jacket",
+  "sculptural-wool-coat",
+  "subversion-wool-blazer",
+  "shadow-oversized-tee",
+  "liquid-crepe-column-dress",
+  "monolith-leather-tote",
+];
+
 function ShopContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const isFeaturedCapsule = searchParams.get("filter") === "featured";
 
   const [allProducts, setAllProducts] = useState<Product[]>(() => {
     if (typeof window !== "undefined") {
@@ -126,7 +136,11 @@ function ShopContent() {
     setSelectedPalette("ALL");
     setMaxPrice(DEFAULT_MAX_PRICE);
     setSortBy("featured");
-    router.replace(pathname, { scroll: false });
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("category");
+    params.delete("filter");
+    const q = params.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
   };
 
   // Dynamic live counts for category badges
@@ -143,6 +157,13 @@ function ShopContent() {
   // Filter & sort logic
   const filteredProducts = useMemo(() => {
     return allProducts.filter((product) => {
+      // Featured capsule filter
+      if (isFeaturedCapsule) {
+        if (!product.isFeatured && !FEATURED_CAPSULE_IDS.includes(product.id)) {
+          return false;
+        }
+      }
+
       // Category filter
       if (category !== "ALL") {
         const prodCat = (product.category || "").toUpperCase();
@@ -194,11 +215,12 @@ function ShopContent() {
       if (sortBy === "newest") return (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0);
       return 0; // featured
     });
-  }, [allProducts, category, searchQuery, maxPrice, selectedSizes, selectedPalette, sortBy]);
+  }, [allProducts, category, searchQuery, maxPrice, selectedSizes, selectedPalette, sortBy, isFeaturedCapsule]);
 
   // Check if any filter is active
   const hasActiveFilters =
     category !== "ALL" ||
+    isFeaturedCapsule ||
     selectedSizes.length > 0 ||
     selectedPalette !== "ALL" ||
     maxPrice < DEFAULT_MAX_PRICE ||
@@ -260,6 +282,31 @@ function ShopContent() {
             </div>
           </div>
         </div>
+
+        {/* Curated Capsule Notice if filtered by collection */}
+        {isFeaturedCapsule && (
+          <div className="mt-6 p-4 sm:p-5 bg-[#111111] text-[#F5F3EF] flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-white/10">
+            <div>
+              <span className="text-[10px] font-mono tracking-widest uppercase text-white/50 block">
+                CURATED CAPSULE // AUTUMN / WINTER ATELIER 2026
+              </span>
+              <p className="text-sm font-editorial uppercase tracking-wider text-white mt-1">
+                Featured Collection ({filteredProducts.length} Silhouettes)
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                const params = new URLSearchParams(searchParams.toString());
+                params.delete("filter");
+                const q = params.toString();
+                router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+              }}
+              className="text-xs uppercase tracking-widest text-white/80 hover:text-white underline underline-offset-4 self-start sm:self-auto transition-colors"
+            >
+              View Full Catalog ({allProducts.length} Silhouettes)
+            </button>
+          </div>
+        )}
 
         {/* Category Navigation Bar (Top Level Access) */}
         <div className="py-4 border-b border-[#D8D5CF] flex items-center gap-2 sm:gap-4 overflow-x-auto scrollbar-none">

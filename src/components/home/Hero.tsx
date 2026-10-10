@@ -6,14 +6,28 @@ import Link from "next/link";
 import { ArrowDown, ArrowRight } from "lucide-react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useLenis } from "@/components/animations/SmoothScroll";
 
 gsap.registerPlugin(ScrollTrigger);
 
 export function Hero() {
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLDivElement>(null);
+  const { lenis } = useLenis();
   const headline = "DESIGNED FOR THOSE WHO MOVE DIFFERENTLY.";
   const words = headline.split(" ");
+
+  const handleScrollToCollection = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const target = document.getElementById("collection");
+    if (lenis && target) {
+      lenis.scrollTo("#collection", { offset: 0, duration: 1.2 });
+    } else if (target) {
+      target.scrollIntoView({ behavior: "smooth" });
+    } else {
+      window.location.href = "/shop";
+    }
+  };
 
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -90,13 +104,14 @@ export function Hero() {
           </p>
 
           <div className="flex items-center gap-4">
-            <Link
-              href="/shop"
-              className="group px-7 py-3.5 bg-[#F5F3EF] text-[#111111] text-xs uppercase tracking-widest font-medium hover:bg-white transition-all duration-300 flex items-center gap-2"
+            <a
+              href="#collection"
+              onClick={handleScrollToCollection}
+              className="group px-7 py-3.5 bg-[#F5F3EF] text-[#111111] text-xs uppercase tracking-widest font-medium hover:bg-white transition-all duration-300 flex items-center gap-2 cursor-pointer"
             >
               <span>Explore Collection</span>
               <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-            </Link>
+            </a>
 
             <Link
               href="/lookbook"

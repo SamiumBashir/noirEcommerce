@@ -9,6 +9,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { PRODUCTS, Product } from "@/lib/data/products";
 import { formatPrice } from "@/lib/utils";
 import { useCart } from "@/lib/context/CartContext";
+import { useLenis } from "@/components/animations/SmoothScroll";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -24,12 +25,27 @@ export function FeaturedCollection() {
 
   const featuredProducts = PRODUCTS.filter((p) => targetIds.includes(p.id));
   const { addToCart } = useCart();
+  const { lenis } = useLenis();
 
   const sectionRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const [scrollPercent, setScrollPercent] = useState(0);
+
+  // Auto-scroll when navigating to #collection
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash === "#collection") {
+      const timer = setTimeout(() => {
+        if (lenis) {
+          lenis.scrollTo("#collection", { offset: 0, duration: 1.2 });
+        } else {
+          document.getElementById("collection")?.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 450);
+      return () => clearTimeout(timer);
+    }
+  }, [lenis]);
 
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -148,6 +164,7 @@ export function FeaturedCollection() {
 
   return (
     <section
+      id="collection"
       ref={sectionRef}
       className="relative w-full bg-[#111111] text-[#F5F3EF] overflow-hidden py-24 lg:py-0 lg:h-screen lg:flex lg:flex-col lg:justify-between"
     >
@@ -165,17 +182,27 @@ export function FeaturedCollection() {
           </h2>
         </div>
 
-        {/* Progress bar (Desktop) */}
-        <div className="hidden lg:flex items-center gap-4 text-xs font-mono text-white/50">
-          <span>01</span>
-          <div className="w-36 h-[2px] bg-white/20 relative overflow-hidden">
-            <div
-              ref={progressRef}
-              className="h-full bg-white transition-all duration-150 ease-out"
-              style={{ width: `${Math.max(scrollPercent, 10)}%` }}
-            />
+        <div className="flex items-center gap-6">
+          <Link
+            href="/shop"
+            className="hidden sm:inline-flex items-center gap-2 text-xs uppercase tracking-widest text-white/70 hover:text-white border-b border-white/30 hover:border-white pb-0.5 transition-colors"
+          >
+            <span>All Products</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+
+          {/* Progress bar (Desktop) */}
+          <div className="hidden lg:flex items-center gap-4 text-xs font-mono text-white/50">
+            <span>01</span>
+            <div className="w-36 h-[2px] bg-white/20 relative overflow-hidden">
+              <div
+                ref={progressRef}
+                className="h-full bg-white transition-all duration-150 ease-out"
+                style={{ width: `${Math.max(scrollPercent, 10)}%` }}
+              />
+            </div>
+            <span>0{featuredProducts.length}</span>
           </div>
-          <span>0{featuredProducts.length}</span>
         </div>
       </div>
 
@@ -192,29 +219,33 @@ export function FeaturedCollection() {
             >
               <div className="featured-card-inner flex flex-col w-full h-full will-change-transform">
                 {/* Product Visual */}
-                <Link
-                  href={`/products/${product.slug}`}
-                  className="relative aspect-[3/4.2] w-full overflow-hidden bg-[#1A1A1A] block"
-                >
-                  {/* Model Image Wrapper for Down-to-Up Parallax */}
-                  <div className="model-img-wrapper relative w-full h-[125%] -top-[12.5%] will-change-transform">
-                    <Image
-                      src={product.images[0]}
-                      alt={product.name}
-                      fill
-                      sizes="(max-width: 768px) 280px, 400px"
-                      className="object-cover transition-transform duration-700 ease-out group-hover:scale-105 filter brightness-95"
-                    />
-                  </div>
+                <div className="relative aspect-[3/4.2] w-full overflow-hidden bg-[#1A1A1A] block">
+                  <Link
+                    href={`/products/${product.slug}`}
+                    className="block w-full h-full"
+                    aria-label={`View ${product.name}`}
+                  >
+                    {/* Model Image Wrapper for Down-to-Up Parallax */}
+                    <div className="model-img-wrapper relative w-full h-[125%] -top-[12.5%] will-change-transform">
+                      <Image
+                        src={product.images[0]}
+                        alt={product.name}
+                        fill
+                        sizes="(max-width: 768px) 280px, 400px"
+                        className="object-cover transition-transform duration-700 ease-out group-hover:scale-105 filter brightness-95"
+                      />
+                    </div>
 
-                  {/* Index tag */}
-                  <div className="absolute top-4 left-4 z-10 text-[10px] font-mono tracking-widest text-white/60 bg-black/40 backdrop-blur-sm px-2 py-0.5">
-                    0{idx + 1} // ARCHIVE
-                  </div>
+                    {/* Index tag */}
+                    <div className="absolute top-4 left-4 z-10 text-[10px] font-mono tracking-widest text-white/60 bg-black/40 backdrop-blur-sm px-2 py-0.5">
+                      0{idx + 1} // ARCHIVE
+                    </div>
+                  </Link>
 
                   {/* Hover overlay quick add */}
-                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6">
+                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6 pointer-events-none group-hover:pointer-events-auto">
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -226,7 +257,7 @@ export function FeaturedCollection() {
                       <span>Quick Add — {formatPrice(product.price)}</span>
                     </button>
                   </div>
-                </Link>
+                </div>
 
                 {/* Info Bottom */}
                 <div className="pt-4 flex items-baseline justify-between gap-4">

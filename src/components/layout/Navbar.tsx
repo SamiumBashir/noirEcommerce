@@ -10,12 +10,14 @@ import { useWishlist } from "@/lib/context/WishlistContext";
 import { useAuth } from "@/lib/context/AuthContext";
 import { SearchModal } from "@/components/layout/SearchModal";
 import { CartDrawer } from "@/components/layout/CartDrawer";
+import { useLenis } from "@/components/animations/SmoothScroll";
 
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const pathname = usePathname();
+  const { lenis } = useLenis();
 
   const { cartCount, setIsCartOpen, lastAddedItem } = useCart();
   const { wishlistCount } = useWishlist();
@@ -40,10 +42,41 @@ export function Navbar() {
 
   const navLinks = [
     { label: "SHOP", href: "/shop" },
-    { label: "COLLECTION", href: "/shop?filter=featured" },
+    { label: "COLLECTION", href: "/#collection" },
     { label: "LOOKBOOK", href: "/lookbook" },
     { label: "ABOUT", href: "/about" },
   ];
+
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (href === "/#collection" || href === "#collection") {
+      if (pathname === "/") {
+        e.preventDefault();
+        const target = document.getElementById("collection");
+        if (lenis && target) {
+          lenis.scrollTo("#collection", { offset: 0, duration: 1.2 });
+        } else if (target) {
+          target.scrollIntoView({ behavior: "smooth" });
+        }
+      }
+    }
+  };
+
+  const handleMobileNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    setMobileMenuOpen(false);
+    if (href === "/#collection" || href === "#collection") {
+      if (pathname === "/") {
+        e.preventDefault();
+        setTimeout(() => {
+          const target = document.getElementById("collection");
+          if (lenis && target) {
+            lenis.scrollTo("#collection", { offset: 0, duration: 1.2 });
+          } else if (target) {
+            target.scrollIntoView({ behavior: "smooth" });
+          }
+        }, 300);
+      }
+    }
+  };
 
   const isLightHeroPage = pathname === "/" && !isScrolled;
 
@@ -79,6 +112,7 @@ export function Navbar() {
                 <Link
                   key={link.label}
                   href={link.href}
+                  onClick={(e) => handleNavClick(e, link.href)}
                   className={`text-xs uppercase tracking-[0.2em] font-medium transition-all duration-200 relative py-1 ${
                     isLightHeroPage
                       ? "text-white/90 hover:text-white"
@@ -220,7 +254,7 @@ export function Navbar() {
                 >
                   <Link
                     href={link.href}
-                    onClick={() => setMobileMenuOpen(false)}
+                    onClick={(e) => handleMobileNavClick(e, link.href)}
                     className="font-editorial text-3xl sm:text-4xl uppercase tracking-wider hover:text-white/60 transition-colors inline-block"
                   >
                     {link.label}
