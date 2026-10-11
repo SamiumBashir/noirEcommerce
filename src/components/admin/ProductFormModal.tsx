@@ -172,8 +172,12 @@ export function ProductFormModal({
       const formData = new FormData();
       formData.append("file", file);
 
+      const adminToken = typeof window !== "undefined" ? (localStorage.getItem("noir_admin_token") || localStorage.getItem("noir_token")) : null;
       const res = await fetch("/api/upload", {
         method: "POST",
+        headers: {
+          ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
+        },
         body: formData,
       });
 
@@ -332,9 +336,13 @@ export function ProductFormModal({
       const endpoint = isEditing ? `/api/products/${productToEdit?.id}` : "/api/products";
       const method = isEditing ? "PUT" : "POST";
 
+      const adminToken = typeof window !== "undefined" ? (localStorage.getItem("noir_admin_token") || localStorage.getItem("noir_token")) : null;
       const res = await fetch(endpoint, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
+        },
         body: JSON.stringify(finalProductData),
       });
 

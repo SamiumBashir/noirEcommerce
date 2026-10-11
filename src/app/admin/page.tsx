@@ -45,7 +45,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>("analytics");
 
   // Admin Auth Gate State
-  const [adminEmail, setAdminEmail] = useState("admin@noir.studio");
+  const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState("");
@@ -199,7 +199,12 @@ export default function AdminPage() {
 
     async function loadOrders() {
       try {
-        const res = await fetch("/api/orders");
+        const adminToken = typeof window !== "undefined" ? (localStorage.getItem("noir_admin_token") || localStorage.getItem("noir_token")) : null;
+        const res = await fetch("/api/orders", {
+          headers: {
+            ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
+          },
+        });
         const data = await res.json();
         if (data.success && Array.isArray(data.data) && data.data.length > 0) {
           const mapped: AdminOrder[] = data.data.map((o: any) => ({
@@ -262,7 +267,13 @@ export default function AdminPage() {
     deleteCustomProductFromStorage(id);
 
     try {
-      const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
+      const adminToken = typeof window !== "undefined" ? (localStorage.getItem("noir_admin_token") || localStorage.getItem("noir_token")) : null;
+      const res = await fetch(`/api/products/${id}`, {
+        method: "DELETE",
+        headers: {
+          ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
+        },
+      });
       const data = await res.json();
       if (res.ok && data.success) {
         setProductList((prev) => prev.filter((p) => p.id !== id && p.slug !== id));
@@ -290,9 +301,13 @@ export default function AdminPage() {
   // Handle Order Status Update with Server Sync
   const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
+      const adminToken = typeof window !== "undefined" ? (localStorage.getItem("noir_admin_token") || localStorage.getItem("noir_token")) : null;
       const res = await fetch(`/api/orders/${orderId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
+        },
         body: JSON.stringify({ orderStatus: newStatus }),
       });
       const data = await res.json();
@@ -315,133 +330,103 @@ export default function AdminPage() {
     setTimeout(() => setToast(null), 4500);
   };
 
-  // Handle Admin Login submission
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
     setIsVerifying(true);
 
     try {
-      const res = await fetch("/api/admin/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: adminEmail, password: adminPassword }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setAuthError(data.error || "Authentication failed. Invalid curator credentials.");
-        setIsVerifying(false);
-        return;
-      }
-
-      await adminLogin(adminEmail, adminPassword);
-      setIsVerifying(false);
-    } catch {
       const result = await adminLogin(adminEmail, adminPassword);
       if (!result.success) {
         setAuthError(result.error || "Access Denied: Invalid credentials.");
       }
+    } catch {
+      setAuthError("Unable to connect to atelier authentication server.");
+    } finally {
       setIsVerifying(false);
     }
-  };
-
-  const handleAutoFillDemo = () => {
-    setAdminEmail("admin@noir.studio");
-    setAdminPassword("admin123");
-    setAuthError("");
   };
 
   // Auth gate check - requires verified admin credentials
   if (!isAdmin) {
     return (
-      <div className="w-full min-h-screen bg-[#F5F3EF] pt-32 pb-32 px-6 sm:px-12 flex items-center justify-center">
-        <div className="max-w-md w-full bg-[#EAE8E2]/80 border border-[#D8D5CF] p-8 sm:p-12 shadow-sm space-y-8 backdrop-blur-sm">
-          {/* Header */}
+      <div className="w-full min-h-screen bg-[#F5F3EF] flex flex-col justify-center items-center py-20 px-4 sm:px-6 relative overflow-hidden">
+        {/* Subtle Luxury Background Geometry */}
+        <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[radial-gradient(#111111_1px,transparent_1px)] [background-size:24px_24px]" />
+
+        <div className="max-w-[430px] w-full bg-white border border-[#E2DFD8] shadow-[0_20px_50px_rgba(0,0,0,0.06)] p-8 sm:p-11 space-y-7 relative z-10">
+          {/* Brand Header */}
           <div className="text-center space-y-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-black/5 border border-[#D8D5CF] text-[10px] uppercase font-mono tracking-widest text-[#111111] mb-1">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#F5F3EF] border border-[#E2DFD8] text-[9px] uppercase font-mono tracking-[0.25em] text-[#555555]">
+              <ShieldCheck className="w-3 h-3 text-[#111111]" />
               <span>Restricted Atelier System</span>
             </div>
-            <div className="w-12 h-12 mx-auto rounded-full bg-[#111111] text-[#F5F3EF] flex items-center justify-center shadow-md">
-              <Lock className="w-5 h-5" />
+
+            <div className="pt-2">
+              <h1 className="font-editorial text-3xl sm:text-4xl uppercase tracking-tight text-[#111111]">
+                Curator Portal
+              </h1>
+              <p className="text-xs text-[#777777] font-light tracking-wide mt-1">
+                Enter authorized atelier credentials to access inventory, orders & studio telemetry.
+              </p>
             </div>
-            <h1 className="font-editorial text-3xl sm:text-4xl uppercase tracking-tight text-[#111111]">
-              Curator Access
-            </h1>
-            <p className="text-xs text-[#6B6B6B] font-light leading-relaxed">
-              Administrative clearance required. Please verify your atelier curator email and security passkey.
-            </p>
           </div>
 
           {/* Error Message */}
           {authError && (
-            <div className="bg-red-50 border border-red-300 text-red-800 p-3.5 text-xs flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+            <div className="bg-[#FFF5F5] border border-[#F5C2C2] text-[#9E1C1C] p-3.5 text-xs flex items-start gap-2.5 rounded-none animate-in fade-in duration-200">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#C92A2A]" />
               <div className="leading-snug">
-                <span className="font-semibold block uppercase tracking-wider text-[10px] mb-0.5">Authorization Denied</span>
+                <span className="font-semibold block uppercase tracking-wider text-[10px] mb-0.5">
+                  Authentication Failed
+                </span>
                 {authError}
               </div>
             </div>
           )}
 
-          {/* Fast Auto-fill Demo Box */}
-          <div className="bg-white/80 border border-[#D8D5CF] p-3.5 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-[#6B6B6B]">
-                // DEMO CREDENTIALS
-              </span>
-              <button
-                type="button"
-                onClick={handleAutoFillDemo}
-                className="text-[10px] uppercase tracking-wider text-[#111111] hover:underline font-semibold flex items-center gap-1"
-              >
-                <span>Auto-fill</span>
-                <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
-            <div className="text-[11px] font-mono text-[#111111] bg-[#F5F3EF] px-2.5 py-1.5 border border-[#D8D5CF]/60 flex items-center justify-between">
-              <span>mail: admin@noir.studio</span>
-              <span className="text-[#6B6B6B]">pass: admin123</span>
-            </div>
-          </div>
-
-          {/* Form */}
+          {/* Login Form */}
           <form onSubmit={handleAdminLogin} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-[10px] uppercase tracking-widest text-[#6B6B6B] block font-mono">
-                Administrator Email
+              <label className="text-[10px] uppercase tracking-[0.18em] text-[#666666] block font-mono font-medium">
+                Curator Email
               </label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-[#6B6B6B] absolute left-3 top-1/2 -translate-y-1/2" />
+                <Mail className="w-4 h-4 text-[#888888] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="email"
                   required
                   value={adminEmail}
                   onChange={(e) => setAdminEmail(e.target.value)}
                   placeholder="admin@noir.studio"
-                  className="w-full bg-white border border-[#D8D5CF] pl-9.5 pr-3.5 py-2.5 text-xs text-[#111111] focus:outline-none focus:border-[#111111]"
+                  autoComplete="username"
+                  className="w-full bg-[#FAF9F6] border border-[#DCD9D1] pl-10 pr-4 py-3 text-xs text-[#111111] placeholder:text-[#999999] focus:outline-none focus:border-[#111111] focus:bg-white transition-all font-mono"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] uppercase tracking-widest text-[#6B6B6B] block font-mono">
-                Security Passkey
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] uppercase tracking-[0.18em] text-[#666666] block font-mono font-medium">
+                  Security Passkey
+                </label>
+              </div>
               <div className="relative">
-                <KeyRound className="w-4 h-4 text-[#6B6B6B] absolute left-3 top-1/2 -translate-y-1/2" />
+                <KeyRound className="w-4 h-4 text-[#888888] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type={showPassword ? "text" : "password"}
                   required
                   value={adminPassword}
                   onChange={(e) => setAdminPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-white border border-[#D8D5CF] pl-9.5 pr-10 py-2.5 text-xs text-[#111111] focus:outline-none focus:border-[#111111]"
+                  placeholder="••••••••••••"
+                  autoComplete="current-password"
+                  className="w-full bg-[#FAF9F6] border border-[#DCD9D1] pl-10 pr-11 py-3 text-xs text-[#111111] placeholder:text-[#999999] focus:outline-none focus:border-[#111111] focus:bg-white transition-all font-mono"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B6B6B] hover:text-[#111111]"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#888888] hover:text-[#111111] transition-colors p-1"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -451,26 +436,36 @@ export default function AdminPage() {
             <button
               type="submit"
               disabled={isVerifying}
-              className="w-full py-3 bg-[#111111] text-[#F5F3EF] hover:bg-black text-xs uppercase tracking-widest font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+              className="w-full mt-2 py-3.5 bg-[#111111] text-[#F5F3EF] hover:bg-black text-[11px] uppercase tracking-[0.2em] font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 cursor-pointer active:scale-[0.99]"
             >
               {isVerifying ? (
-                <span>Verifying Credentials...</span>
+                <span className="inline-flex items-center gap-2">
+                  <span className="w-3.5 h-3.5 border-2 border-[#F5F3EF]/30 border-t-[#F5F3EF] rounded-full animate-spin" />
+                  <span>Verifying Credentials...</span>
+                </span>
               ) : (
                 <>
-                  <ShieldCheck className="w-4 h-4" />
+                  <Lock className="w-3.5 h-3.5" />
                   <span>Authenticate & Unlock Atelier</span>
                 </>
               )}
             </button>
           </form>
 
-          <div className="text-center pt-2 border-t border-[#D8D5CF]/60">
-            <Link
-              href="/"
-              className="text-xs text-[#6B6B6B] hover:text-[#111111] transition-colors uppercase tracking-wider inline-flex items-center gap-1.5"
-            >
-              <span>← Return to Storefront</span>
-            </Link>
+          {/* Security & Navigation Footer */}
+          <div className="pt-3 border-t border-[#EAE7E0] space-y-3 text-center">
+            <div className="flex items-center justify-center gap-1.5 text-[9px] font-mono text-[#888888] uppercase tracking-wider">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              <span>TLS 1.3 End-to-End Encrypted Session</span>
+            </div>
+            <div>
+              <Link
+                href="/"
+                className="text-[11px] text-[#666666] hover:text-[#111111] transition-colors uppercase tracking-[0.15em] inline-flex items-center gap-1 font-mono font-medium hover:underline"
+              >
+                <span>← Return to Storefront</span>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
