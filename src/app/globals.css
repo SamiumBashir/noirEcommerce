@@ -65,7 +65,8 @@
 }
 
 /* Lenis Recommended CSS */
-html.lenis, html.lenis body {
+html.lenis,
+html.lenis body {
   height: auto;
 }
 
@@ -89,6 +90,7 @@ html.lenis, html.lenis body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -98,6 +100,7 @@ html.lenis, html.lenis body {
 .img-editorial-zoom {
   transition: transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
 .group:hover .img-editorial-zoom {
   transform: scale(1.06);
 }
@@ -498,14 +501,16 @@ html.lenis, html.lenis body {
 }
 
 @keyframes authSliderMove {
-  0%, 49.99% {
+
+  0%,
+  49.99% {
     opacity: 0;
     z-index: 1;
   }
-  50%, 100% {
+
+  50%,
+  100% {
     opacity: 1;
     z-index: 5;
   }
 }
-
-

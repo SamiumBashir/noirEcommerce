@@ -179,22 +179,20 @@ function DualAuthPageContent() {
           <button
             type="button"
             onClick={() => setIsSignUpActive(false)}
-            className={`flex-1 py-2.5 text-[11px] font-mono uppercase tracking-[0.18em] transition-all duration-200 cursor-pointer ${
-              !isSignUpActive
+            className={`flex-1 py-2.5 text-[11px] font-mono uppercase tracking-[0.18em] transition-all duration-200 cursor-pointer ${!isSignUpActive
                 ? "bg-[#111111] text-[#F5F3EF] shadow-xs font-semibold"
                 : "text-[#6B6B6B] hover:text-[#111111]"
-            }`}
+              }`}
           >
             Sign In
           </button>
           <button
             type="button"
             onClick={() => setIsSignUpActive(true)}
-            className={`flex-1 py-2.5 text-[11px] font-mono uppercase tracking-[0.18em] transition-all duration-200 cursor-pointer ${
-              isSignUpActive
+            className={`flex-1 py-2.5 text-[11px] font-mono uppercase tracking-[0.18em] transition-all duration-200 cursor-pointer ${isSignUpActive
                 ? "bg-[#111111] text-[#F5F3EF] shadow-xs font-semibold"
                 : "text-[#6B6B6B] hover:text-[#111111]"
-            }`}
+              }`}
           >
             Create Account
           </button>
@@ -275,16 +273,12 @@ function DualAuthPageContent() {
             </div>
 
             <div className="w-full text-right mt-1.5 mb-2">
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  alert("Passkey recovery dispatched to your client email address.");
-                }}
+              <Link
+                href="/forgot-password"
                 className="text-[10px] text-[#666666] hover:text-[#111111] font-mono uppercase tracking-wider underline underline-offset-4 transition-colors"
               >
                 Forgot Passkey?
-              </a>
+              </Link>
             </div>
 
             <button
@@ -488,9 +482,8 @@ function DualAuthPageContent() {
       {/* Authentic Sliding Dual Overlay Architecture              */}
       {/* ======================================================== */}
       <div
-        className={`hidden md:block auth-slider-container ${
-          isSignUpActive ? "active" : ""
-        }`}
+        className={`hidden md:block auth-slider-container ${isSignUpActive ? "active" : ""
+          }`}
         id="container"
       >
         {/* SIGN UP FORM CONTAINER */}
@@ -684,16 +677,12 @@ function DualAuthPageContent() {
             </div>
 
             <div className="w-full max-w-[340px] text-right mb-1">
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  alert("Passkey recovery dispatched to your client email address.");
-                }}
+              <Link
+                href="/forgot-password"
                 className="auth-forgot"
               >
                 Forgot Passkey?
-              </a>
+              </Link>
             </div>
 
             <div className="w-full max-w-[340px]">
