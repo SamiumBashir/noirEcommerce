@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
     const paymentStatus = searchParams.get("paymentStatus");
     const orderStatus = searchParams.get("orderStatus");
     const userId = searchParams.get("userId");
+    const email = searchParams.get("email");
 
     const conn = await connectToDatabase();
     if (conn) {
@@ -51,8 +52,12 @@ export async function GET(request: NextRequest) {
       if (orderStatus && orderStatus !== "ALL") {
         query.orderStatus = orderStatus.toUpperCase();
       }
-      if (userId) {
+      if (userId && email) {
+        query.$or = [{ userId }, { customerEmail: email.toLowerCase() }];
+      } else if (userId) {
         query.userId = userId;
+      } else if (email) {
+        query.customerEmail = email.toLowerCase();
       }
 
       const orders = await OrderModel.find(query).sort({ createdAt: -1 }).lean();

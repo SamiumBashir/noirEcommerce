@@ -179,12 +179,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
       }
 
+      const isDemoAlexander = email.toLowerCase() === "alexander@noir.studio";
       const authenticatedUser: User = {
-        ...DEFAULT_USER,
-        id: data.user?.id || `usr_${Date.now()}`,
-        name: data.user?.name || email.split("@")[0].replace(".", " ").toUpperCase(),
+        id: data.user?.id || (isDemoAlexander ? DEFAULT_USER.id : `usr_${Date.now()}`),
+        name: data.user?.name || (isDemoAlexander ? DEFAULT_USER.name : email.split("@")[0].replace(".", " ").toUpperCase()),
         email: data.user?.email || email,
         role: data.user?.role || (isExplicitAdmin ? "admin" : role),
+        addresses: data.user?.addresses || (isDemoAlexander ? DEFAULT_USER.addresses : []),
+        orders: data.user?.orders || (isDemoAlexander ? DEFAULT_USER.orders : []),
       };
 
       if (data.token) {
@@ -201,11 +203,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err: any) {
       console.warn("[Auth] Backend login API unreachable, using local fallback:", err.message);
       // Fallback for offline environments
+      const isDemoAlexander = email.toLowerCase() === "alexander@noir.studio";
       const fallbackUser: User = {
-        ...DEFAULT_USER,
+        id: isDemoAlexander ? DEFAULT_USER.id : `usr_${Date.now()}`,
         email,
-        name: email.split("@")[0].replace(".", " ").toUpperCase(),
+        name: isDemoAlexander ? DEFAULT_USER.name : email.split("@")[0].replace(".", " ").toUpperCase(),
         role: isExplicitAdmin ? "admin" : role,
+        addresses: isDemoAlexander ? DEFAULT_USER.addresses : [],
+        orders: isDemoAlexander ? DEFAULT_USER.orders : [],
       };
       if (isExplicitAdmin) {
         localStorage.setItem("noir_admin_authenticated", "true");

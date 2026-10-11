@@ -413,23 +413,41 @@ export default function ProductDetailPage({ params }: PageProps) {
 
             {/* Action Buttons */}
             <div className="space-y-3 pt-2">
-              <button
-                onClick={handleAddToCart}
-                disabled={isAdded}
-                className="w-full py-4 bg-[#111111] text-[#F5F3EF] text-xs uppercase tracking-widest font-medium hover:bg-black transition-all flex items-center justify-center gap-2 shadow-sm"
-              >
-                {isAdded ? (
-                  <>
-                    <Check className="w-4 h-4 text-emerald-400" />
-                    <span>Added to Bag</span>
-                  </>
-                ) : (
-                  <>
-                    <ShoppingBag className="w-4 h-4" />
-                    <span>Add to Bag — {formatPrice(product.price * quantity)}</span>
-                  </>
-                )}
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleAddToCart}
+                  disabled={isAdded}
+                  className="flex-1 py-4 bg-[#111111] text-[#F5F3EF] text-xs uppercase tracking-widest font-medium hover:bg-black transition-all flex items-center justify-center gap-2 shadow-sm"
+                >
+                  {isAdded ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-400" />
+                      <span>Added to Bag</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingBag className="w-4 h-4" />
+                      <span>Add to Bag — {formatPrice(product.price * quantity)}</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => toggleWishlist(product.id)}
+                  aria-label={isFavorited ? "Remove from wishlist" : "Add to wishlist"}
+                  className="px-4 py-4 border border-[#111111] bg-white hover:bg-black/5 text-[#111111] transition-all flex items-center justify-center shrink-0"
+                  title={isFavorited ? "In Private Archive" : "Save to Archive"}
+                >
+                  <Heart
+                    className={`w-4 h-4 transition-colors ${
+                      isFavorited
+                        ? "fill-[#111111] text-[#111111]"
+                        : "text-[#111111] stroke-[1.5]"
+                    }`}
+                  />
+                </button>
+              </div>
 
               <button
                 onClick={handleBuyNow}

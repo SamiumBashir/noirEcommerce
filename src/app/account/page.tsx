@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -19,7 +19,7 @@ import {
   Lock,
   Loader2,
 } from "lucide-react";
-import { useAuth, Address } from "@/lib/context/AuthContext";
+import { useAuth, Address, UserOrder } from "@/lib/context/AuthContext";
 import { useWishlist } from "@/lib/context/WishlistContext";
 import { formatPrice } from "@/lib/utils";
 
@@ -30,6 +30,53 @@ export default function AccountPage() {
   const { user, logout, updateAddress, deactivateAccount } = useAuth();
   const { wishlistItems } = useWishlist();
   const [activeTab, setActiveTab] = useState<TabType>("orders");
+  const [liveOrders, setLiveOrders] = useState<UserOrder[]>(user?.orders || []);
+
+  useEffect(() => {
+    if (!user) return;
+    fetch(`/api/orders?email=${encodeURIComponent(user.email)}&userId=${encodeURIComponent(user.id)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+          const mappedOrders: UserOrder[] = data.data.map((o: any) => ({
+            id: o.orderId || o._id,
+            date: o.createdAt
+              ? new Date(o.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+              : "Recent",
+            status: o.orderStatus === "DELIVERED"
+              ? "Delivered"
+              : o.orderStatus === "SHIPPED"
+              ? "Dispatched"
+              : o.orderStatus === "PROCESSING"
+              ? "In Atelier"
+              : o.orderStatus === "CANCELLED"
+              ? "Cancelled"
+              : "Processing",
+            trackingNumber: o.trackingNumber || `NR-${(o.orderId || "0000000").slice(-7)}`,
+            total: o.totalAmount || o.total || 0,
+            paymentMethod: o.paymentMethod === "SSLCOMMERZ" ? "SSLCOMMERZ Payment" : o.paymentMethod || "COD",
+            transactionId: o.transactionId,
+            items: (o.products || o.items || []).map((it: any) => ({
+              name: it.name || "Noir Garment",
+              size: it.size || "M",
+              color: it.color || "Noir",
+              quantity: it.quantity || 1,
+              price: it.price || 0,
+              image: it.image || "https://images.unsplash.com/photo-1544022613-e87ca75a784a?q=80&w=800&auto=format&fit=crop",
+            })),
+          }));
+
+          const existingIds = new Set(mappedOrders.map((m) => m.id));
+          const localOnly = (user.orders || []).filter((lo) => !existingIds.has(lo.id));
+          setLiveOrders([...mappedOrders, ...localOnly]);
+        } else {
+          setLiveOrders(user.orders || []);
+        }
+      })
+      .catch(() => {
+        setLiveOrders(user.orders || []);
+      });
+  }, [user?.email, user?.id, user?.orders]);
 
   // New address state
   const [showAddressModal, setShowAddressModal] = useState(false);
@@ -219,11 +266,11 @@ export default function AccountPage() {
                     Atelier Orders
                   </h2>
                   <span className="text-xs font-mono text-[#6B6B6B]">
-                    {user.orders.length} Records
+                    {liveOrders.length} Records
                   </span>
                 </div>
 
-                {user.orders.length === 0 ? (
+                {liveOrders.length === 0 ? (
                   <div className="py-12 text-center">
                     <p className="text-xs text-[#6B6B6B]">You have placed no orders yet.</p>
                     <Link
@@ -235,7 +282,7 @@ export default function AccountPage() {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {user.orders.map((order) => (
+                    {liveOrders.map((order) => (
                       <div
                         key={order.id}
                         className="bg-white border border-[#D8D5CF] p-6 space-y-4 shadow-sm"
