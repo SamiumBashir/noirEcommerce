@@ -80,6 +80,11 @@ export function Navbar() {
 
   const isLightHeroPage = pathname === "/" && !isScrolled;
 
+  // Don't render the global storefront Navbar on standalone auth pages (e.g. /login, /register)
+  if (pathname === "/login" || pathname === "/login/" || pathname === "/register" || pathname === "/register/") {
+    return null;
+  }
+
   return (
     <>
       <header

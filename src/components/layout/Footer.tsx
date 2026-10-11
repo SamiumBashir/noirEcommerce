@@ -2,11 +2,18 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ArrowUpRight, Check } from "lucide-react";
 
 export function Footer() {
+  const pathname = usePathname();
   const [email, setEmail] = useState("");
   const [subscribed, setSubscribed] = useState(false);
+
+  // Don't render storefront footer on standalone auth pages (e.g. /login, /register)
+  if (pathname === "/login" || pathname === "/login/" || pathname === "/register" || pathname === "/register/") {
+    return null;
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
