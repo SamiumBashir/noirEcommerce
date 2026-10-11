@@ -253,42 +253,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           error: data.error || "Authentication failed. Access denied.",
         };
       }
+
+      if (data.token) {
+        localStorage.setItem("noir_token", data.token);
+        localStorage.setItem("noir_admin_token", data.token);
+      }
+
+      const adminUser: User = {
+        id: data.user?.id || "usr_curator_admin",
+        name: data.user?.name || "Curator Admin",
+        email: normalizedEmail,
+        role: "admin",
+        addresses: user?.addresses || DEFAULT_USER.addresses,
+        orders: user?.orders || DEFAULT_USER.orders,
+      };
+
+      localStorage.setItem("noir_admin_authenticated", "true");
+      localStorage.setItem("noir_logged_in", "true");
+      localStorage.setItem("noir_auth_user", JSON.stringify(adminUser));
+      setUser(adminUser);
+      return { success: true };
     } catch {
-      // Fallback
-    }
-
-    const isValidAdminEmail =
-      normalizedEmail === "admin@noir.studio" ||
-      normalizedEmail === "curator.admin@noir.studio" ||
-      normalizedEmail === "atelier@noir.studio" ||
-      (normalizedEmail.includes("admin") && normalizedEmail.includes("@"));
-
-    const isValidPassword =
-      normalizedPassword === "admin123" ||
-      normalizedPassword === "noir2026" ||
-      normalizedPassword === "admin";
-
-    if (!isValidAdminEmail || !isValidPassword) {
       return {
         success: false,
-        error: "Access Denied: Invalid credentials. Administrator email and passkey required.",
+        error: "Unable to connect to atelier authentication service.",
       };
     }
-
-    const adminUser: User = {
-      id: "usr_curator_admin",
-      name: "Curator Admin",
-      email: normalizedEmail,
-      role: "admin",
-      addresses: user?.addresses || DEFAULT_USER.addresses,
-      orders: user?.orders || DEFAULT_USER.orders,
-    };
-
-    localStorage.setItem("noir_admin_authenticated", "true");
-    localStorage.setItem("noir_logged_in", "true");
-    localStorage.setItem("noir_auth_user", JSON.stringify(adminUser));
-    setUser(adminUser);
-    return { success: true };
   };
 
   const adminLogout = () => {
