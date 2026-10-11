@@ -1,6 +1,16 @@
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET || "noir_atelier_secret_jwt_key_2026_production";
+function getJwtSecret(): string {
+  if (process.env.JWT_SECRET) {
+    return process.env.JWT_SECRET;
+  }
+  if (process.env.NODE_ENV === "production") {
+    console.warn(
+      "[SECURITY WARNING] JWT_SECRET environment variable is missing in production! Please set a strong random secret."
+    );
+  }
+  return "noir_atelier_secret_jwt_key_2026_production";
+}
 
 export interface JwtUserPayload {
   userId: string;
@@ -10,12 +20,12 @@ export interface JwtUserPayload {
 }
 
 export function signJwtToken(payload: JwtUserPayload, expiresIn: string = "7d"): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn } as jwt.SignOptions);
+  return jwt.sign(payload, getJwtSecret(), { expiresIn } as jwt.SignOptions);
 }
 
 export function verifyJwtToken(token: string): JwtUserPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as JwtUserPayload;
+    return jwt.verify(token, getJwtSecret()) as JwtUserPayload;
   } catch {
     return null;
   }
