@@ -56,6 +56,10 @@ interface AuthContextType {
   updateAddress: (address: Address) => void;
   adminLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   adminLogout: () => void;
+  forgotPassword: (email: string) => Promise<{ success: boolean; message?: string; devOtp?: string; error?: string }>;
+  verifyResetOtp: (email: string, otp: string) => Promise<{ success: boolean; resetToken?: string; message?: string; error?: string }>;
+  resendResetOtp: (email: string) => Promise<{ success: boolean; message?: string; retryAfter?: number; devOtp?: string; error?: string }>;
+  resetPassword: (resetToken: string, newPassword: string) => Promise<{ success: boolean; message?: string; error?: string }>;
 }
 
 export const DEFAULT_USER: User = {
@@ -512,6 +516,126 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser({ ...user, addresses: newAddresses });
   };
 
+  const forgotPassword = async (
+    email: string
+  ): Promise<{ success: boolean; message?: string; devOtp?: string; error?: string }> => {
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return {
+          success: false,
+          error: data.error || data.message || "Failed to dispatch recovery code.",
+        };
+      }
+      return {
+        success: true,
+        message: data.message,
+        devOtp: data._devOtp || data.devOtp,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || "Unable to reach security service.",
+      };
+    }
+  };
+
+  const verifyResetOtp = async (
+    email: string,
+    otp: string
+  ): Promise<{ success: boolean; resetToken?: string; message?: string; error?: string }> => {
+    try {
+      const res = await fetch("/api/auth/verify-reset-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, otp }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return {
+          success: false,
+          error: data.error || data.message || "Invalid or expired passcode.",
+        };
+      }
+      return {
+        success: true,
+        resetToken: data.resetToken,
+        message: data.message,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || "Failed to verify passcode.",
+      };
+    }
+  };
+
+  const resendResetOtp = async (
+    email: string
+  ): Promise<{ success: boolean; message?: string; retryAfter?: number; devOtp?: string; error?: string }> => {
+    try {
+      const res = await fetch("/api/auth/resend-reset-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return {
+          success: false,
+          retryAfter: data.retryAfter,
+          error: data.error || data.message || "Failed to resend recovery passcode.",
+        };
+      }
+      return {
+        success: true,
+        message: data.message,
+        retryAfter: data.retryAfter,
+        devOtp: data._devOtp || data.devOtp,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || "Unable to dispatch fresh code.",
+      };
+    }
+  };
+
+  const resetPassword = async (
+    resetToken: string,
+    newPassword: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> => {
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resetToken, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return {
+          success: false,
+          error: data.error || data.message || "Failed to reset passkey.",
+        };
+      }
+      logout();
+      return {
+        success: true,
+        message: data.message,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err?.message || "Failed to communicate with security service.",
+      };
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -530,6 +654,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updateAddress,
         adminLogin,
         adminLogout,
+        forgotPassword,
+        verifyResetOtp,
+        resendResetOtp,
+        resetPassword,
       }}
     >
       {children}
