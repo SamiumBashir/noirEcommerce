@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { OrderModel } from "@/lib/db/models/Order";
+import { ProductModel } from "@/lib/db/models/Product";
 import { validateSslcommerzPayment, getSiteBaseUrl } from "@/lib/sslcommerz";
 
 async function handleSuccessCallback(request: NextRequest) {
@@ -139,6 +140,15 @@ async function handleSuccessCallback(request: NextRequest) {
     );
 
     console.log(`[SSLCOMMERZ Success] Order ${order.orderId} verified and updated to PAID.`);
+
+    // Atomic Stock Decrement
+    const orderItems = (order.products && order.products.length > 0 ? order.products : order.items) || [];
+    for (const item of orderItems) {
+      await ProductModel.updateOne(
+        { $or: [{ id: item.productId }, { slug: item.productId }] },
+        { $inc: { stockCount: -item.quantity } }
+      ).catch((err) => console.warn(`Stock decrement error for ${item.productId}:`, err));
+    }
 
     return NextResponse.redirect(
       `${siteUrl}/payment/success?orderId=${order.orderId}&tranId=${order.transactionId}`,

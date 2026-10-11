@@ -111,31 +111,15 @@ export async function POST(request: NextRequest) {
     for (const item of items) {
       let product = findProduct(item.productId);
 
-      // Auto-recover custom silhouettes created by admin (e.g. noir-batch-16-8858)
+      // Verify product exists in catalog (prevent client price injection attacks)
       if (!product) {
-        const fallbackPrice = typeof item.price === "number" && item.price > 0 ? item.price : 180;
-        const fallbackName = item.name || item.productId.replace(/^noir-/, "").replace(/-\d+$/, "").replace(/-/g, " ").toUpperCase();
-
-        product = {
-          id: item.productId,
-          slug: item.productId.replace(/^noir-/, "").replace(/-\d+$/, ""),
-          name: fallbackName,
-          price: fallbackPrice,
-          inStock: true,
-          stockCount: 50,
-          images: item.image ? [item.image] : [],
-        } as any;
-
-        // Auto-persist to MongoDB Atlas so the silhouette exists permanently in database
-        try {
-          await ProductModel.findOneAndUpdate(
-            { $or: [{ id: item.productId }, { slug: product.slug }] },
-            { $set: product },
-            { upsert: true, new: true }
-          );
-        } catch (saveErr) {
-          console.warn("[Catalog] Could not auto-upsert custom cart product:", saveErr);
-        }
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Product "${item.name || item.productId}" is not available in our catalogue.`,
+          },
+          { status: 400 }
+        );
       }
 
       if (product.inStock === false || (product.stockCount !== undefined && product.stockCount < item.quantity)) {

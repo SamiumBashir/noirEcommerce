@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { OrderModel } from "@/lib/db/models/Order";
+import { ProductModel } from "@/lib/db/models/Product";
 import { validateSslcommerzPayment } from "@/lib/sslcommerz";
 
 export async function POST(request: NextRequest) {
@@ -121,6 +122,16 @@ export async function POST(request: NextRequest) {
     );
 
     console.log(`[SSLCOMMERZ IPN Success] Order ${order.orderId} updated to PAID via IPN.`);
+
+    // Atomic Stock Decrement
+    const orderItems = (order.products && order.products.length > 0 ? order.products : order.items) || [];
+    for (const item of orderItems) {
+      await ProductModel.updateOne(
+        { $or: [{ id: item.productId }, { slug: item.productId }] },
+        { $inc: { stockCount: -item.quantity } }
+      ).catch((err) => console.warn(`Stock decrement error for ${item.productId} in IPN:`, err));
+    }
+
     return NextResponse.json({
       success: true,
       message: "IPN processed and order updated to PAID",
