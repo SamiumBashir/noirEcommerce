@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { isCloudinaryConfigured, uploadToCloudinary } from "@/lib/cloudinary";
+import { requireAdmin } from "@/lib/security/authGuard";
 
 function isServerlessEnvironment(): boolean {
   return Boolean(
@@ -15,6 +16,11 @@ function isServerlessEnvironment(): boolean {
 
 export async function POST(request: NextRequest) {
   try {
+    const authCheck = requireAdmin(request);
+    if (authCheck.errorResponse) {
+      return authCheck.errorResponse;
+    }
+
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
 
@@ -25,19 +31,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate mime type
+    // Validate mime type (strict raster image formats, SVG disallowed to prevent Stored XSS)
     const validMimeTypes = [
       "image/jpeg",
       "image/png",
       "image/webp",
       "image/gif",
       "image/avif",
-      "image/svg+xml",
     ];
 
-    if (!validMimeTypes.includes(file.type) && !file.name.match(/\.(jpg|jpeg|png|webp|gif|avif|svg)$/i)) {
+    if (!validMimeTypes.includes(file.type) && !file.name.match(/\.(jpg|jpeg|png|webp|gif|avif)$/i)) {
       return NextResponse.json(
-        { success: false, error: "Invalid file format. Please upload a JPG, PNG, WEBP, or AVIF image." },
+        { success: false, error: "Invalid file format. Please upload a safe JPG, PNG, WEBP, GIF, or AVIF image." },
         { status: 400 }
       );
     }

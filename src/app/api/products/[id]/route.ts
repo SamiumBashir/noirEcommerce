@@ -8,6 +8,7 @@ import {
   saveCustomProductToFile,
   deleteCustomProductFromFile,
 } from "@/lib/server/productPersistence";
+import { requireAdmin } from "@/lib/security/authGuard";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -137,6 +138,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 }
 
 export async function PUT(request: NextRequest, { params }: RouteParams) {
+  const authCheck = requireAdmin(request);
+  if (authCheck.errorResponse) {
+    return authCheck.errorResponse;
+  }
+
   const { id } = await params;
   try {
     const body = await request.json();
@@ -198,6 +204,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 }
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  const authCheck = requireAdmin(request);
+  if (authCheck.errorResponse) {
+    return authCheck.errorResponse;
+  }
+
   const { id } = await params;
   try {
     // 1. Remove from persistent disk storage

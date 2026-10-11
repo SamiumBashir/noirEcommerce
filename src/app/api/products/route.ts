@@ -8,6 +8,7 @@ import {
   saveCustomProductToFile,
   mergeWithSeedProducts,
 } from "@/lib/server/productPersistence";
+import { requireAdmin } from "@/lib/security/authGuard";
 
 export async function GET(request: NextRequest) {
   try {
@@ -82,6 +83,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const authCheck = requireAdmin(request);
+    if (authCheck.errorResponse) {
+      return authCheck.errorResponse;
+    }
+
     const body = await request.json();
     const validation = ProductValidationSchema.safeParse(body);
 
