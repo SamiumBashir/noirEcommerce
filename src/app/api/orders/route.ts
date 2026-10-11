@@ -2,31 +2,32 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { OrderModel } from "@/lib/db/models/Order";
-import { PRODUCTS, Product } from "@/lib/data/products";
 import { ProductModel } from "@/lib/db/models/Product";
+import { PRODUCTS } from "@/lib/data/products";
 import { getCustomProductsFromFile } from "@/lib/server/productPersistence";
+import { getAuthenticatedUser } from "@/lib/security/authGuard";
 
 const CreateOrderSchema = z.object({
-  customerName: z.string().min(2, "Customer name is required"),
-  customerEmail: z.string().email("Valid email is required"),
-  customerPhone: z.string().optional().default(""),
+  customerName: z.string().min(2, "Name must be at least 2 characters"),
+  customerEmail: z.string().email("Invalid email address"),
+  customerPhone: z.string().optional(),
   shippingAddress: z.object({
-    street: z.string().min(1),
-    city: z.string().min(1),
-    state: z.string().min(1),
-    postalCode: z.string().min(1),
-    country: z.string().min(1),
+    street: z.string().min(3, "Street address required"),
+    city: z.string().min(2, "City required"),
+    state: z.string().min(2, "State / Region required"),
+    postalCode: z.string().min(2, "Postal code required"),
+    country: z.string().min(2, "Country required"),
   }),
   deliveryMethod: z.enum(["standard", "priority"]).default("standard"),
-  paymentMethod: z.enum(["COD", "SSLCOMMERZ"]).default("COD"),
+  paymentMethod: z.enum(["COD", "SSLCOMMERZ", "Card", "bKash"]).default("COD"),
   userId: z.string().optional(),
   items: z
     .array(
       z.object({
-        productId: z.string().min(1),
-        size: z.string().min(1),
-        color: z.string().min(1),
-        quantity: z.number().int().positive(),
+        productId: z.string(),
+        quantity: z.number().int().positive("Quantity must be positive"),
+        size: z.string().default("M"),
+        color: z.string().default("Black"),
         name: z.string().optional(),
         price: z.number().optional(),
         image: z.string().optional(),
@@ -43,6 +44,20 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get("userId");
     const email = searchParams.get("email");
 
+    // Access control: Only admins can list all orders across all customers
+    const authUser = getAuthenticatedUser(request);
+    const isAdmin = authUser?.role === "admin";
+
+    if (!isAdmin && !userId && !email) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Unauthorized: Please specify email or userId parameter to query your orders, or log in as administrator.",
+        },
+        { status: 401 }
+      );
+    }
+
     const conn = await connectToDatabase();
     if (conn) {
       const query: any = {};
@@ -52,12 +67,25 @@ export async function GET(request: NextRequest) {
       if (orderStatus && orderStatus !== "ALL") {
         query.orderStatus = orderStatus.toUpperCase();
       }
-      if (userId && email) {
-        query.$or = [{ userId }, { customerEmail: email.toLowerCase() }];
-      } else if (userId) {
-        query.userId = userId;
-      } else if (email) {
-        query.customerEmail = email.toLowerCase();
+
+      if (!isAdmin) {
+        // Enforce patron isolation
+        if (userId && email) {
+          query.$or = [{ userId }, { customerEmail: email.toLowerCase() }];
+        } else if (userId) {
+          query.userId = userId;
+        } else if (email) {
+          query.customerEmail = email.toLowerCase();
+        }
+      } else {
+        // Admin can optionally filter by customer
+        if (userId && email) {
+          query.$or = [{ userId }, { customerEmail: email.toLowerCase() }];
+        } else if (userId) {
+          query.userId = userId;
+        } else if (email) {
+          query.customerEmail = email.toLowerCase();
+        }
       }
 
       const orders = await OrderModel.find(query).sort({ createdAt: -1 }).lean();
@@ -140,33 +168,28 @@ export async function POST(request: NextRequest) {
     let serverSubtotal = 0;
 
     for (const item of items) {
-      let product = findProduct(item.productId);
+      const product = findProduct(item.productId);
 
-      // Auto-recover custom silhouettes created by admin (e.g. noir-batch-16-8858)
+      // Secure price check: Strictly reject unverified products to prevent price injection attacks
       if (!product) {
-        const fallbackPrice = typeof item.price === "number" && item.price > 0 ? item.price : 180;
-        const fallbackName = item.name || item.productId.replace(/^noir-/, "").replace(/-\d+$/, "").replace(/-/g, " ").toUpperCase();
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Product "${item.name || item.productId}" is not available in our catalogue.`,
+          },
+          { status: 400 }
+        );
+      }
 
-        product = {
-          id: item.productId,
-          slug: item.productId.replace(/^noir-/, "").replace(/-\d+$/, ""),
-          name: fallbackName,
-          price: fallbackPrice,
-          inStock: true,
-          stockCount: 50,
-          images: item.image ? [item.image] : [],
-        } as any;
-
-        // Auto-persist to MongoDB Atlas
-        try {
-          await ProductModel.findOneAndUpdate(
-            { $or: [{ id: item.productId }, { slug: product.slug }] },
-            { $set: product },
-            { upsert: true, new: true }
-          );
-        } catch (saveErr) {
-          console.warn("[Catalog] Could not auto-upsert custom cart product in orders:", saveErr);
-        }
+      // Inventory check
+      if (product.inStock === false || (product.stockCount !== undefined && product.stockCount < item.quantity)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `"${product.name}" is currently out of stock for the requested quantity.`,
+          },
+          { status: 400 }
+        );
       }
 
       const itemPrice = Number(product.price);
@@ -219,6 +242,15 @@ export async function POST(request: NextRequest) {
     };
 
     const saved = await OrderModel.create(orderRecord);
+
+    // Atomic Stock Decrement for COD orders
+    for (const item of validatedProducts) {
+      await ProductModel.updateOne(
+        { $or: [{ id: item.productId }, { slug: item.productId }] },
+        { $inc: { stockCount: -item.quantity } }
+      ).catch((err) => console.warn(`Stock decrement error for ${item.productId}:`, err));
+    }
+
     return NextResponse.json({ success: true, data: saved }, { status: 201 });
   } catch (error: any) {
     console.error("[Orders POST error]:", error);

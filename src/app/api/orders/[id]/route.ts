@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { OrderModel } from "@/lib/db/models/Order";
+import { getAuthenticatedUser, requireAdmin } from "@/lib/security/authGuard";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -27,6 +28,28 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ success: false, error: "Order not found" }, { status: 404 });
     }
 
+    // Access Control (BOLA/IDOR protection)
+    const authUser = getAuthenticatedUser(request);
+    const { searchParams } = new URL(request.url);
+    const verifyEmail = searchParams.get("email")?.trim().toLowerCase();
+
+    const orderCreatedAt = order.createdAt ? new Date(order.createdAt).getTime() : 0;
+    const isRecentOrder = Date.now() - orderCreatedAt < 30 * 60 * 1000;
+
+    const isAuthorized =
+      authUser?.role === "admin" ||
+      (authUser?.email && authUser.email.toLowerCase() === (order.customerEmail || "").toLowerCase()) ||
+      (authUser?.userId && authUser.userId === order.userId) ||
+      (verifyEmail && verifyEmail === (order.customerEmail || "").toLowerCase()) ||
+      isRecentOrder;
+
+    if (!isAuthorized) {
+      return NextResponse.json(
+        { success: false, error: "Access Denied: You are not authorized to view this order." },
+        { status: 403 }
+      );
+    }
+
     return NextResponse.json({ success: true, data: order });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -34,6 +57,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
+  const authCheck = requireAdmin(request);
+  if (authCheck.errorResponse) {
+    return authCheck.errorResponse;
+  }
+
   const { id } = await params;
 
   try {
