@@ -17,6 +17,7 @@ export interface JwtUserPayload {
   email: string;
   role: string;
   name: string;
+  tokenVersion?: number;
 }
 
 export function signJwtToken(payload: JwtUserPayload, expiresIn: string = "7d"): string {

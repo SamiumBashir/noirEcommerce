@@ -20,6 +20,8 @@ export interface IUser {
   deactivatedAt?: Date;
   deactivationReason?: string;
   lastLoginAt?: Date;
+  passwordChangedAt?: Date;
+  tokenVersion?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -109,6 +111,14 @@ const UserSchema = new Schema<IUserDocument>(
       type: String,
       trim: true,
       maxlength: 300,
+    },
+    passwordChangedAt: {
+      type: Date,
+    },
+    tokenVersion: {
+      type: Number,
+      default: 0,
+      index: true,
     },
   },
   {
