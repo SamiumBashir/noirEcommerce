@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, ArrowLeft, ShieldCheck, Check, AlertCircle, Mail, Lock, User } from "lucide-react";
 import { useAuth } from "@/lib/context/AuthContext";
+import { SocialAuthModal } from "@/components/auth/SocialAuthModal";
 
 function GoogleIcon() {
   return (
@@ -135,7 +136,20 @@ function DualAuthPageContent() {
     router.push(redirectTarget);
   };
 
-  // Handle Quick Demo / Social Patron Access
+  // Social Auth Modal States
+  const [socialModalOpen, setSocialModalOpen] = useState(false);
+  const [socialProvider, setSocialProvider] = useState<"google" | "apple">("google");
+  const [socialMode, setSocialMode] = useState<"register" | "signin">("register");
+
+  const handleOpenSocialModal = (provider: "google" | "apple", mode: "register" | "signin") => {
+    setSignInError("");
+    setSignUpError("");
+    setSocialProvider(provider);
+    setSocialMode(mode);
+    setSocialModalOpen(true);
+  };
+
+  // Fallback direct demo patron login
   const handleSocialOrDemoAuth = async () => {
     setSignInError("");
     setSignUpError("");
@@ -304,7 +318,7 @@ function DualAuthPageContent() {
             <div className="grid grid-cols-2 gap-3 w-full">
               <button
                 type="button"
-                onClick={handleSocialOrDemoAuth}
+                onClick={() => handleOpenSocialModal("google", "signin")}
                 className="auth-social-btn"
                 title="Continue with Google"
                 aria-label="Continue with Google"
@@ -314,7 +328,7 @@ function DualAuthPageContent() {
               </button>
               <button
                 type="button"
-                onClick={handleSocialOrDemoAuth}
+                onClick={() => handleOpenSocialModal("apple", "signin")}
                 className="auth-social-btn"
                 title="Continue with Apple"
                 aria-label="Continue with Apple"
@@ -443,7 +457,7 @@ function DualAuthPageContent() {
             <div className="grid grid-cols-2 gap-3 w-full">
               <button
                 type="button"
-                onClick={handleSocialOrDemoAuth}
+                onClick={() => handleOpenSocialModal("google", "register")}
                 className="auth-social-btn"
                 title="Register with Google"
                 aria-label="Register with Google"
@@ -453,7 +467,7 @@ function DualAuthPageContent() {
               </button>
               <button
                 type="button"
-                onClick={handleSocialOrDemoAuth}
+                onClick={() => handleOpenSocialModal("apple", "register")}
                 className="auth-social-btn"
                 title="Register with Apple"
                 aria-label="Register with Apple"
@@ -586,7 +600,7 @@ function DualAuthPageContent() {
             <div className="auth-social-row">
               <button
                 type="button"
-                onClick={handleSocialOrDemoAuth}
+                onClick={() => handleOpenSocialModal("google", "register")}
                 className="auth-social-btn"
                 title="Register with Google"
                 aria-label="Register with Google"
@@ -596,7 +610,7 @@ function DualAuthPageContent() {
               </button>
               <button
                 type="button"
-                onClick={handleSocialOrDemoAuth}
+                onClick={() => handleOpenSocialModal("apple", "register")}
                 className="auth-social-btn"
                 title="Register with Apple"
                 aria-label="Register with Apple"
@@ -710,7 +724,7 @@ function DualAuthPageContent() {
             <div className="auth-social-row">
               <button
                 type="button"
-                onClick={handleSocialOrDemoAuth}
+                onClick={() => handleOpenSocialModal("google", "signin")}
                 className="auth-social-btn"
                 title="Sign in with Google"
                 aria-label="Sign in with Google"
@@ -720,7 +734,7 @@ function DualAuthPageContent() {
               </button>
               <button
                 type="button"
-                onClick={handleSocialOrDemoAuth}
+                onClick={() => handleOpenSocialModal("apple", "signin")}
                 className="auth-social-btn"
                 title="Sign in with Apple"
                 aria-label="Sign in with Apple"
@@ -790,6 +804,21 @@ function DualAuthPageContent() {
       <div className="mt-8 text-center text-[10px] text-[#888888] font-mono tracking-[0.25em] uppercase">
         ATELIER NOIR // DESIGNED FOR THOSE WHO MOVE DIFFERENTLY
       </div>
+
+      {/* Social Account Selector & Passkey Setup Modal */}
+      <SocialAuthModal
+        isOpen={socialModalOpen}
+        onClose={() => setSocialModalOpen(false)}
+        provider={socialProvider}
+        mode={socialMode}
+        prefillName={socialMode === "register" ? signUpName : ""}
+        prefillEmail={socialMode === "register" ? signUpEmail : signInEmail}
+        prefillPassword={socialMode === "register" ? signUpPassword : signInPassword}
+        onSuccess={() => {
+          setSocialModalOpen(false);
+          router.push(redirectTarget);
+        }}
+      />
     </div>
   );
 }

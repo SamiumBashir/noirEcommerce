@@ -37,7 +37,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectToDatabase();
+    let conn;
+    try {
+      conn = await connectToDatabase();
+    } catch (dbErr: any) {
+      console.error("[AUTH] Database connection failed during registration:", dbErr?.message || dbErr);
+    }
+
+    if (!conn) {
+      return NextResponse.json(
+        {
+          success: false,
+          isDbError: true,
+          error: "Database connection failed: MongoDB authentication error. Please verify your MONGODB_USERNAME and MONGODB_PASSWORD in .env.local.",
+        },
+        { status: 503 }
+      );
+    }
 
     // 2. Existing user check
     const existingUser = await UserModel.findOne({ email: normalizedEmail });
@@ -120,9 +136,20 @@ export async function POST(request: NextRequest) {
     );
   } catch (error: any) {
     console.error("[AUTH] Registration error:", error?.message || error);
+    const isDbAuthError =
+      error?.message?.includes("authentication failed") ||
+      error?.message?.includes("bad auth") ||
+      error?.name === "MongoServerError";
+
     return NextResponse.json(
-      { success: false, error: "Registration failed. Please try again." },
-      { status: 500 }
+      {
+        success: false,
+        isDbError: isDbAuthError,
+        error: isDbAuthError
+          ? "Database authentication failed. Please verify your MONGODB_USERNAME and MONGODB_PASSWORD in .env.local."
+          : error?.message || "Registration failed. Please try again.",
+      },
+      { status: isDbAuthError ? 503 : 500 }
     );
   }
 }
