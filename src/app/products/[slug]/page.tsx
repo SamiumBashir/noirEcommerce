@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PRODUCTS, Product } from "@/lib/data/products";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, formatPriceBdt, formatDualPrice } from "@/lib/utils";
 import { useCart } from "@/lib/context/CartContext";
 import { useWishlist } from "@/lib/context/WishlistContext";
 import { ProductCard } from "@/components/ui/ProductCard";
@@ -141,6 +141,17 @@ export default function ProductDetailPage({ params }: PageProps) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isAdded, setIsAdded] = useState(false);
 
+  // Fabric texture zoom state
+  const [zoomPos, setZoomPos] = useState({ x: 50, y: 50 });
+  const [isZooming, setIsZooming] = useState(false);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setZoomPos({ x, y });
+  };
+
   useEffect(() => {
     if (product) {
       if (product.colors?.[0]) setSelectedColor(product.colors[0]);
@@ -234,7 +245,13 @@ export default function ProductDetailPage({ params }: PageProps) {
           {/* Left Column: Visual Gallery */}
           <div className="lg:col-span-7 flex flex-col gap-6">
             {/* Main Featured Image */}
-            <div className="relative aspect-[3/4] w-full overflow-hidden bg-[#EAE8E2] border border-[#D8D5CF]">
+            {/* Main Featured Image with Hover Fabric Inspection Zoom */}
+            <div
+              className="relative aspect-[3/4] w-full overflow-hidden bg-[#EAE8E2] border border-[#D8D5CF] cursor-crosshair group select-none"
+              onMouseEnter={() => setIsZooming(true)}
+              onMouseLeave={() => setIsZooming(false)}
+              onMouseMove={handleMouseMove}
+            >
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeImageIndex}
@@ -254,14 +271,33 @@ export default function ProductDetailPage({ params }: PageProps) {
                     fill
                     priority
                     sizes="(max-width: 1024px) 100vw, 60vw"
-                    className="object-cover"
+                    className="object-cover transition-transform duration-150 ease-out will-change-transform"
+                    style={
+                      isZooming
+                        ? {
+                            transformOrigin: `${zoomPos.x}% ${zoomPos.y}%`,
+                            transform: "scale(2.2)",
+                          }
+                        : {
+                            transformOrigin: "center center",
+                            transform: "scale(1)",
+                          }
+                    }
                   />
                 </motion.div>
               </AnimatePresence>
 
+              {/* Texture Inspection Indicator Badge */}
+              <div className="absolute bottom-3 left-3 z-20 pointer-events-none bg-black/60 backdrop-blur-sm text-white px-2.5 py-1 text-[10px] uppercase font-mono tracking-wider opacity-70 group-hover:opacity-100 transition-opacity flex items-center gap-1.5">
+                <span>{isZooming ? "Inspecting Weave (2.2x)" : "Hover to Inspect Fabric Texture"}</span>
+              </div>
+
               {/* Wishlist Button */}
               <button
-                onClick={() => toggleWishlist(product.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleWishlist(product.id);
+                }}
                 className="absolute top-4 right-4 z-20 w-11 h-11 rounded-full bg-[#F5F3EF]/90 backdrop-blur-md flex items-center justify-center text-[#111111] shadow-sm hover:scale-110 active:scale-95 transition-transform"
                 aria-label="Toggle wishlist"
               >
@@ -312,16 +348,19 @@ export default function ProductDetailPage({ params }: PageProps) {
                 {product.name}
               </h1>
 
-              <div className="flex items-baseline gap-4 mt-3">
+              <div className="flex flex-wrap items-baseline gap-3.5 mt-3">
                 <span className="text-2xl font-light text-[#111111]">
                   {formatPrice(product.price)}
+                </span>
+                <span className="text-xs text-[#6B6B6B] font-mono">
+                  (~ {formatPriceBdt(product.price)})
                 </span>
                 {product.originalPrice && (
                   <span className="text-sm line-through text-[#6B6B6B]">
                     {formatPrice(product.originalPrice)}
                   </span>
                 )}
-                <span className="text-xs uppercase tracking-widest text-[#6B6B6B]">
+                <span className="text-[11px] uppercase tracking-widest text-[#111111] bg-black/5 px-2.5 py-0.5 border border-[#D8D5CF] font-medium">
                   In Stock ({product.stockCount} Available)
                 </span>
               </div>
@@ -427,7 +466,7 @@ export default function ProductDetailPage({ params }: PageProps) {
                   ) : (
                     <>
                       <ShoppingBag className="w-4 h-4" />
-                      <span>Add to Bag — {formatPrice(product.price * quantity)}</span>
+                      <span>Add to Bag — {formatPrice(product.price * quantity)} ({formatPriceBdt(product.price * quantity)})</span>
                     </>
                   )}
                 </button>

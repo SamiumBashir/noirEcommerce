@@ -5,9 +5,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { Trash2, Plus, Minus, ArrowRight, ShieldCheck, Truck, ShoppingBag } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import { useCart } from "@/lib/context/CartContext";
 import { useAuth } from "@/lib/context/AuthContext";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, formatPriceBdt, formatDualPrice } from "@/lib/utils";
 
 export default function CartPage() {
   const router = useRouter();
@@ -31,6 +32,10 @@ export default function CartPage() {
   const shippingFee = subtotal >= 250 ? 0 : 25;
   const estimatedTotal = subtotal - discountAmount + shippingFee;
 
+  const shippingThreshold = 250;
+  const shippingProgress = Math.min(100, Math.round((subtotal / shippingThreshold) * 100));
+  const remainingForFreeShipping = Math.max(0, shippingThreshold - subtotal);
+
   return (
     <div className="w-full min-h-screen bg-[#F5F3EF] pt-28 pb-32 px-6 sm:px-12 md:px-16">
       <div className="max-w-7xl mx-auto">
@@ -47,6 +52,34 @@ export default function CartPage() {
               {cartCount} {cartCount === 1 ? "Item" : "Items"} Selected
             </span>
           </div>
+
+          {/* Complimentary Shipping Progress Banner */}
+          {cart.length > 0 && (
+            <div className="mt-6 p-4 bg-[#EAE8E2] border border-[#D8D5CF]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-[#111111] mb-2">
+                {subtotal >= shippingThreshold ? (
+                  <span className="font-medium text-[#111111] flex items-center gap-2">
+                    <span className="text-emerald-700 font-bold">✓</span> You have unlocked complimentary global express delivery.
+                  </span>
+                ) : (
+                  <span>
+                    Add <strong className="font-semibold">{formatPrice(remainingForFreeShipping)}</strong> (<span className="text-[#6B6B6B]">{formatPriceBdt(remainingForFreeShipping)}</span>) more for free global express shipping.
+                  </span>
+                )}
+                <span className="text-[11px] font-mono uppercase text-[#6B6B6B]">
+                  {shippingProgress}% Completed
+                </span>
+              </div>
+              <div className="w-full h-1.5 bg-[#D8D5CF] overflow-hidden rounded-full">
+                <motion.div
+                  className="h-full bg-[#111111]"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${shippingProgress}%` }}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {cart.length === 0 ? (
@@ -97,15 +130,20 @@ export default function CartPage() {
                         >
                           {item.product.name}
                         </Link>
-                        <span className="text-sm font-medium text-[#111111]">
-                          {formatPrice(item.product.price * item.quantity)}
-                        </span>
+                        <div className="text-right">
+                          <span className="text-sm font-medium text-[#111111] block">
+                            {formatPrice(item.product.price * item.quantity)}
+                          </span>
+                          <span className="text-[11px] text-[#6B6B6B] font-mono block">
+                            {formatPriceBdt(item.product.price * item.quantity)}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="mt-1 flex flex-wrap gap-x-4 text-xs text-[#6B6B6B]">
                         <span>Color: {item.color}</span>
                         <span>Size: {item.size}</span>
-                        <span>Unit: {formatPrice(item.product.price)}</span>
+                        <span>Unit: {formatPrice(item.product.price)} ({formatPriceBdt(item.product.price)})</span>
                       </div>
                     </div>
 
@@ -197,18 +235,19 @@ export default function CartPage() {
               {/* Total */}
               <div className="pt-2 flex justify-between items-baseline text-base font-semibold text-[#111111] border-t border-[#D8D5CF]">
                 <span>Estimated Total</span>
-                <span className="text-xl font-light">{formatPrice(estimatedTotal)}</span>
+                <div className="text-right">
+                  <span className="text-xl font-light block">{formatPrice(estimatedTotal)}</span>
+                  <span className="text-xs text-[#6B6B6B] font-mono block">
+                    approx. {formatPriceBdt(estimatedTotal)}
+                  </span>
+                </div>
               </div>
 
               {/* Checkout Button */}
               <div className="pt-2 space-y-3">
                 <button
                   onClick={() => {
-                    if (!isAuthenticated) {
-                      openAuthModal("Authentication is required to proceed to checkout.");
-                    } else {
-                      router.push("/checkout");
-                    }
+                    router.push("/checkout");
                   }}
                   className="w-full py-4 bg-[#111111] text-[#F5F3EF] text-xs uppercase tracking-widest font-medium hover:bg-black transition-colors flex items-center justify-center gap-2 shadow-sm"
                 >

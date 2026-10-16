@@ -13,3 +13,20 @@ export function formatPrice(price: number): string {
     maximumFractionDigits: 0,
   }).format(price);
 }
+
+export const USD_TO_BDT_RATE = 120;
+
+export function formatPriceBdt(usdPrice: number): string {
+  const bdt = Math.round(usdPrice * USD_TO_BDT_RATE);
+  return `৳${bdt.toLocaleString("en-BD")}`;
+}
+
+export function formatDualPrice(usdPrice: number): { usd: string; bdt: string; combined: string } {
+  const usd = formatPrice(usdPrice);
+  const bdt = formatPriceBdt(usdPrice);
+  return {
+    usd,
+    bdt,
+    combined: `${usd} (~ ${bdt})`,
+  };
+}

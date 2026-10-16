@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Heart, ShoppingBag, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import { Product } from "@/lib/data/products";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, formatPriceBdt } from "@/lib/utils";
 import { useCart } from "@/lib/context/CartContext";
 import { useWishlist } from "@/lib/context/WishlistContext";
 
@@ -197,7 +197,7 @@ export function ProductCard({
                     <span>Added to Bag</span>
                   </>
                 ) : (
-                  <span>Add to Bag — {formatPrice(product.price)}</span>
+                  <span>Add to Bag — {formatPrice(product.price)} ({formatPriceBdt(product.price)})</span>
                 )}
               </button>
             </div>
@@ -207,16 +207,21 @@ export function ProductCard({
 
       {/* Product Information */}
       <div className="pt-3 pb-2 flex flex-col">
-        <div className="flex items-baseline justify-between gap-2">
+        <div className="flex items-start justify-between gap-2">
           <Link
             href={`/products/${product.slug}`}
             className="text-xs uppercase tracking-wider text-[#111111] font-medium hover:opacity-70 transition-opacity truncate"
           >
             {product.name}
           </Link>
-          <span className="text-xs font-medium text-[#111111] whitespace-nowrap">
-            {formatPrice(product.price)}
-          </span>
+          <div className="text-right whitespace-nowrap shrink-0">
+            <span className="text-xs font-medium text-[#111111] block">
+              {formatPrice(product.price)}
+            </span>
+            <span className="text-[10px] text-[#6B6B6B] font-mono block">
+              {formatPriceBdt(product.price)}
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center justify-between mt-1 text-[11px] text-[#6B6B6B]">

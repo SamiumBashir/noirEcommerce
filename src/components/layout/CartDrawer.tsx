@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/context/CartContext";
 import { useAuth } from "@/lib/context/AuthContext";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, formatPriceBdt, formatDualPrice } from "@/lib/utils";
 
 export function CartDrawer() {
   const router = useRouter();
@@ -45,6 +45,10 @@ export function CartDrawer() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isCartOpen, setIsCartOpen]);
+
+  const shippingThreshold = 250;
+  const shippingProgress = Math.min(100, Math.round((subtotal / shippingThreshold) * 100));
+  const remainingForFreeShipping = Math.max(0, shippingThreshold - subtotal);
 
   return (
     <AnimatePresence>
@@ -86,17 +90,30 @@ export function CartDrawer() {
                 </button>
               </div>
 
-              {/* Free shipping progress indicator */}
-              <div className="px-6 py-3 bg-[#EAE8E2] border-b border-[#D8D5CF]/60 text-[11px] text-[#111111] flex items-center justify-between">
-                {subtotal >= 250 ? (
-                  <span className="font-medium">
-                    You have unlocked complimentary global express delivery.
+              {/* Free shipping progress indicator with visual progress bar */}
+              <div className="px-6 py-3.5 bg-[#EAE8E2] border-b border-[#D8D5CF]/60">
+                <div className="flex items-center justify-between text-[11px] text-[#111111] mb-1.5">
+                  {subtotal >= shippingThreshold ? (
+                    <span className="font-medium text-[#111111] flex items-center gap-1.5">
+                      <span className="text-emerald-700 font-bold">✓</span> Complimentary Global Express Unlocked
+                    </span>
+                  ) : (
+                    <span>
+                      Add <strong className="font-semibold">{formatPrice(remainingForFreeShipping)}</strong> (<span className="text-[#6B6B6B]">{formatPriceBdt(remainingForFreeShipping)}</span>) for free express delivery
+                    </span>
+                  )}
+                  <span className="text-[10px] uppercase tracking-wider text-[#6B6B6B] font-mono">
+                    {shippingProgress}%
                   </span>
-                ) : (
-                  <span>
-                    Add <strong className="font-semibold">{formatPrice(250 - subtotal)}</strong> more for free global express shipping.
-                  </span>
-                )}
+                </div>
+                <div className="w-full h-1 bg-[#D8D5CF] overflow-hidden rounded-full">
+                  <motion.div
+                    className="h-full bg-[#111111]"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${shippingProgress}%` }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                  />
+                </div>
               </div>
 
               {/* Items List */}
@@ -155,9 +172,14 @@ export function CartDrawer() {
                             >
                               {item.product.name}
                             </Link>
-                            <span className="text-xs font-medium text-[#111111]">
-                              {formatPrice(item.product.price * item.quantity)}
-                            </span>
+                            <div className="text-right">
+                              <span className="text-xs font-medium text-[#111111] block">
+                                {formatPrice(item.product.price * item.quantity)}
+                              </span>
+                              <span className="text-[10px] text-[#6B6B6B] font-mono block">
+                                {formatPriceBdt(item.product.price * item.quantity)}
+                              </span>
+                            </div>
                           </div>
 
                           <div className="mt-1 text-[11px] text-[#6B6B6B] space-x-2">
@@ -213,11 +235,18 @@ export function CartDrawer() {
                     </div>
                     <div className="flex justify-between text-xs text-[#6B6B6B]">
                       <span>Shipping</span>
-                      <span>{subtotal >= 250 ? "Complimentary" : "Calculated at checkout"}</span>
+                      <span>{subtotal >= 250 ? "Complimentary Express" : "Calculated at checkout"}</span>
                     </div>
-                    <div className="flex justify-between text-sm font-medium text-[#111111] pt-2 border-t border-[#D8D5CF]/60">
+                    <div className="flex justify-between items-baseline text-sm font-medium text-[#111111] pt-2 border-t border-[#D8D5CF]/60">
                       <span>Total</span>
-                      <span>{formatPrice(subtotal)}</span>
+                      <div className="text-right">
+                        <span className="text-sm font-semibold text-[#111111] block">
+                          {formatPrice(subtotal)}
+                        </span>
+                        <span className="text-[11px] text-[#6B6B6B] font-mono block">
+                          approx. {formatPriceBdt(subtotal)}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -225,11 +254,7 @@ export function CartDrawer() {
                     <button
                       onClick={() => {
                         setIsCartOpen(false);
-                        if (!isAuthenticated) {
-                          openAuthModal("Authentication is required to proceed to checkout.");
-                        } else {
-                          router.push("/checkout");
-                        }
+                        router.push("/checkout");
                       }}
                       className="w-full py-3.5 bg-[#111111] text-[#F5F3EF] text-xs uppercase tracking-widest font-medium hover:bg-black transition-colors flex items-center justify-center gap-2"
                     >

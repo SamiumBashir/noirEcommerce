@@ -119,16 +119,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addToCart = (product: Product, color: string, size: string, quantity = 1): boolean => {
-    // If user is not logged in / signed up, block adding to cart and open Auth Modal
-    if (!isAuthenticated) {
-      setPendingItem({ product, color, size, quantity });
-      setAuthModalMessage(
-        "Client Authentication Required: Please sign in or create an account to curate your shopping bag and acquire garments."
-      );
-      setIsAuthModalOpen(true);
-      return false;
-    }
-
     commitAddToCart(product, color, size, quantity);
     return true;
   };
